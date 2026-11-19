@@ -1,0 +1,16 @@
+Fogline - an Age of Empires IV replay reader. Free, non-commercial; for personal use.
+
+Age of Empires IV (c) Microsoft Corporation. Fogline was created under Microsoft's "Game Content Usage Rules"
+using assets from Age of Empires IV, and it is not endorsed by or affiliated with Microsoft.
+
+This package contains no game files, models, textures or icons. tools/setup.py reads the needed values and
+models from your own installation of the game, on your PC; icons are fetched from data.aoe4world.com when a page is
+built with --icons. Do not share the generated models/, icons/, data/game_weapons.json or the pages made from them
+outside the Game Content Usage Rules.
+
+Third-party data and tools
+- Unit / building / technology tables in data/ are derived from aoe4world data (github.com/aoe4world/data,
+  data.aoe4world.com), used under its terms (non-commercial, with the Microsoft notice above).
+- AOEMods.Essence (github.com/aoemods/AOEMods.Essence, MIT licence) reads the game's archives; tools/setup.py downloads
+  it from its GitHub releases. The .NET runtime it needs is installed from Microsoft (dot.net) when missing.
+- The 3D page loads three.js (MIT licence) from cdnjs.cloudflare.com.

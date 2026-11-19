@@ -1,0 +1,49 @@
+{
+ "source": "github.com/aoe4world/data @ b2cd382, base (non-civ-variant) costs",
+ "techs": {
+  "wheelbarrow": {
+   "name": "Wheelbarrow",
+   "cost": 200
+  },
+  "food1": {
+   "name": "Horticulture",
+   "cost": 150
+  },
+  "food2": {
+   "name": "Fertilization",
+   "cost": 350
+  },
+  "food3": {
+   "name": "Precision Cross-Breeding",
+   "cost": 750
+  },
+  "wood1": {
+   "name": "Double Broadax",
+   "cost": 150
+  },
+  "wood2": {
+   "name": "Lumber Preservation",
+   "cost": 350
+  },
+  "wood3": {
+   "name": "Crosscut Saw",
+   "cost": 750
+  },
+  "gold1": {
+   "name": "Specialized Pick",
+   "cost": 150
+  },
+  "gold2": {
+   "name": "Shaft Mining",
+   "cost": 350
+  },
+  "gold3": {
+   "name": "Cupellation",
+   "cost": 750
+  },
+  "survival": {
+   "name": "Survival Techniques",
+   "cost": 100
+  }
+ }
+}

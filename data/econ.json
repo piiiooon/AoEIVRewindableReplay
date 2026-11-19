@@ -1,0 +1,196 @@
+{
+"source": {
+"rates": "https://ageofempires.fandom.com/wiki/Resource_(Age_of_Empires_IV) (base villager gather rates, resource/s; read 2026-10-25)",
+"multipliers": "github.com/aoe4world/data @ ce8f375: technology effects *GatherRate multiply on villagers, by attribName"
+},
+"rates": {
+"sheep": 0.75,
+"farm": 0.75,
+"berry": 0.69,
+"deer": 0.825,
+"boar": 0.9,
+"shore_fish": 1.0,
+"wood": 0.75,
+"gold": 0.75,
+"stone": 0.75
+},
+"civRates": {
+"abbasid": {
+"berry": 0.8625
+},
+"abbasid_ha_01": {
+"berry": 0.8625
+},
+"sultanate": {
+"berry": 0.8625
+},
+"templar": {
+"wood": 0.63
+}
+},
+"techMultipliers": {
+"upgrade_econ_agriculture_abb": {
+"food": 1.15
+},
+"upgrade_econ_resource_wood_harvest_rate_4": {
+"wood": 1.15
+},
+"upgrade_econ_resource_gold_harvest_rate_4": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_resource_wood_harvest_rate_2": {
+"wood": 1.15
+},
+"upgrade_econ_resource_food_harvest_rate_3": {
+"food": 1.1
+},
+"upgrade_econ_resource_food_harvest_rate_2": {
+"food": 1.1
+},
+"upgrade_econ_resource_wood_harvest_rate_3": {
+"wood": 1.15
+},
+"upgrade_econ_resource_food_harvest_rate_4": {
+"food": 1.1
+},
+"upgrade_econ_resource_gold_harvest_rate_2": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_villager_hunting_gear_1": {
+"hunt": 1.15
+},
+"upgrade_econ_resource_food_harvest_rate_3_byz": {
+"food": 1.1
+},
+"upgrade_econ_resource_food_harvest_rate_2_byz": {
+"food": 1.1
+},
+"upgrade_econ_resource_food_harvest_rate_4_byz": {
+"food": 1.1
+},
+"upgrade_econ_villager_hunting_gear_1_byz": {
+"hunt": 1.15
+},
+"upgrade_dynasty_econ_bonus_chi": {
+"food": 1.05,
+"hunt": 1.05,
+"gold": 1.05,
+"stone": 1.05,
+"wood": 1.05
+},
+"upgrade_econ_resource_wood_harvest_rate_4_sul": {
+"wood": 1.15
+},
+"upgrade_econ_resource_gold_harvest_rate_4_sul": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_resource_wood_harvest_rate_2_sul": {
+"wood": 1.15
+},
+"upgrade_econ_resource_food_harvest_rate_3_sul": {
+"food": 1.1
+},
+"upgrade_econ_resource_food_harvest_rate_2_sul": {
+"food": 1.1
+},
+"upgrade_econ_resource_wood_harvest_rate_3_sul": {
+"wood": 1.15
+},
+"upgrade_econ_resource_food_harvest_rate_4_sul": {
+"food": 1.1
+},
+"upgrade_econ_resource_gold_harvest_rate_2_sul": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_villager_hunting_gear_1_sul": {
+"hunt": 1.15
+},
+"upgrade_econ_resource_wood_harvest_rate_4_mon_ha_gol": {
+"wood": 1.15
+},
+"upgrade_econ_resource_gold_harvest_rate_4_mon": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_resource_wood_harvest_rate_2_mon_ha_gol": {
+"wood": 1.15
+},
+"upgrade_econ_resource_wood_harvest_rate_3_mon_ha_gol": {
+"wood": 1.15
+},
+"upgrade_econ_resource_gold_harvest_rate_2_mon": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_villager_hunting_gear_1_mon": {
+"hunt": 1.15
+},
+"upgrade_devoutness_hre": {
+"gold": 1.05,
+"food": 1.05,
+"wood": 1.05,
+"stone": 1.05
+},
+"upgrade_econ_resource_wood_harvest_rate_4_jpn": {
+"wood": 1.15
+},
+"upgrade_econ_resource_gold_harvest_rate_4_kura_jpn": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_capital_tier_1_jpn": {
+"farm": 1.2
+},
+"upgrade_capital_tier_2_jpn": {
+"farm": 1.4
+},
+"upgrade_econ_resource_wood_harvest_rate_2_jpn": {
+"wood": 1.15
+},
+"upgrade_unit_town_center_wheelbarrow_3_jpn": {
+"berry": 1.25
+},
+"upgrade_econ_resource_wood_harvest_rate_3_jpn": {
+"wood": 1.15
+},
+"upgrade_capital_tier_3_jpn": {
+"farm": 1.6
+},
+"upgrade_econ_resource_gold_harvest_rate_2_kura_jpn": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_unit_town_center_wheelbarrow_2_jpn": {
+"berry": 1.25
+},
+"upgrade_econ_resource_wood_harvest_rate_2_improved_mon": {
+"wood": 1.17
+},
+"upgrade_econ_resource_food_harvest_rate_2_improved_mon": {
+"food": 1.18
+},
+"upgrade_econ_resource_gold_harvest_rate_2_improved_mon": {
+"gold": 1.17,
+"stone": 1.17
+},
+"upgrade_econ_villager_hunting_gear_1_improved_mon": {
+"hunt": 1.09
+},
+"upgrade_anatolian_hills_ott": {
+"gold": 0.9,
+"stone": 0.9
+},
+"upgrade_econ_resource_gold_harvest_rate_4_jpn": {
+"gold": 1.15,
+"stone": 1.15
+},
+"upgrade_econ_resource_gold_harvest_rate_2_jpn": {
+"gold": 1.15,
+"stone": 1.15
+}
+}
+}

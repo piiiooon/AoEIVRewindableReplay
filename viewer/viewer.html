@@ -1,0 +1,1798 @@
+<title>Fogline Replay Reader</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: instrument panel. Map on the left, the opponent read-out (bank estimate, villagers, sightings log) on the right; one timeline bar spans the bottom. */
+:root {
+  --bg: #eef0f2; --panel: #f9fafb; --ink: #1b2129; --muted: #5d6874; --line: #d3d8de;
+  --accent: #b5651d; --accent-soft: rgba(181,101,29,.14);
+  --p1: #2f6db5; --p2: #c23b3b; --p3: #2f8f5b; --p4: #7a4fb3;
+  --truth: #1b2129; --ghost: #8a95a1; --fog: #dde1e5; --fogdark: #c3c9d0; --lit: #f1f3f5; --kill: #6a4fb0; --age1: #4a4f57; --age2: #b07a45; --age3: #b9c0c8; --age4: #d9ad2b; --r-food: #d9622b; --r-wood: #7a5230;
+  --n-tree: #6f9a6a; --n-stealth: #3f6b5c; --n-gold: #c99a14; --n-stone: #7d8794; --n-berry: #43a321; --n-deer: #c0528a; --n-animal: #9a6a3c; --n-other: #9aa3ad; --t-water: #7fa7c9; --t-cliff: #6e5f52;
+  --good: #2f8f5b; --warn: #b07a12;
+  --f-display: "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  --f-body: "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  --f-mono: "Cascadia Mono", Consolas, "BIZ UDGothic", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161b; --panel: #1a1f26; --ink: #e3e7ec; --muted: #94a0ad; --line: #2c343e;
+  --accent: #e0954f; --accent-soft: rgba(224,149,79,.16);
+  --p1: #6aa3e8; --p2: #ec6f6f; --p3: #5cc28a; --p4: #a986e0;
+  --truth: #e3e7ec; --ghost: #6b7683; --fog: #20262e; --fogdark: #12161b; --lit: #29313b; --kill: #a58ce6; --age1: #5b626c; --age2: #c08850; --age3: #c9d0d8; --age4: #e6bb3c; --r-food: #f08050; --r-wood: #b58050; --n-tree: #4f7a4c; --n-stealth: #2f5a4d; --n-gold: #e0b43a; --n-stone: #8a95a3; --n-berry: #7ccf4f; --n-deer: #d97aa8; --n-animal: #b8865a; --n-other: #6b7683; --t-water: #2f4f6e; --t-cliff: #4a4038; --good: #5cc28a; --warn: #d9a441; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161b; --panel: #1a1f26; --ink: #e3e7ec; --muted: #94a0ad; --line: #2c343e;
+  --accent: #e0954f; --accent-soft: rgba(224,149,79,.16);
+  --p1: #6aa3e8; --p2: #ec6f6f; --p3: #5cc28a; --p4: #a986e0;
+  --truth: #e3e7ec; --ghost: #6b7683; --fog: #20262e; --fogdark: #12161b; --lit: #29313b; --kill: #a58ce6; --age1: #5b626c; --age2: #c08850; --age3: #c9d0d8; --age4: #e6bb3c; --r-food: #f08050; --r-wood: #b58050; --n-tree: #4f7a4c; --n-stealth: #2f5a4d; --n-gold: #e0b43a; --n-stone: #8a95a3; --n-berry: #7ccf4f; --n-deer: #d97aa8; --n-animal: #b8865a; --n-other: #6b7683; --t-water: #2f4f6e; --t-cliff: #4a4038; --good: #5cc28a; --warn: #d9a441; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 20px; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; letter-spacing: .02em; margin: 0; }
+.sub { color: var(--muted); font-size: 13px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+label.ctl { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+select, button { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+button { cursor: pointer; }
+button:hover, select:hover { border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.file { font-size: 13px; color: var(--muted); }
+.wrap { max-width: 1680px !important; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; }
+.grid.large { grid-template-columns: minmax(0, 1fr); }
+.grid.large #map { max-width: 1100px; margin: 0 auto; width: 100%; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; }
+.box h2 { font-family: var(--f-display); font-weight: 600; font-size: 15px; letter-spacing: .08em;
+  text-transform: uppercase; margin: 0; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+canvas { display: block; width: 100%; }
+#map { aspect-ratio: 1 / 1; max-width: 100%; background: var(--fog); border-radius: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 10px; height: 10px; display: inline-block; }
+.readout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { border-left: 2px solid var(--line); padding-left: 8px; }
+.stat .k { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font-family: var(--f-mono); font-size: 19px; font-variant-numeric: tabular-nums; }
+.stat .n { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.pill { font-family: var(--f-mono); font-size: 12px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+.saving { color: var(--good); } .spending { color: var(--p2); } .flat { color: var(--muted); }
+.chart { height: 150px; }
+.chart.rev { height: 220px; cursor: crosshair; }
+.revsp { display: flex; flex-direction: column; gap: 2px; font-size: 13px; max-height: 320px; overflow-y: auto; }
+.revsp .spk { padding: 3px 6px; border-left: 3px solid var(--line); }
+.revsp .spk.on { background: var(--accent-soft); }
+.revsp .spk button.seek { font: 12px var(--f-mono); margin-right: 6px; }
+.revsp .spk .why { color: var(--muted); font-style: italic; }
+.revsp details { margin: 1px 0 2px 4px; } .revsp summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.revsp ul { margin: 2px 0; padding-left: 18px; color: var(--muted); font-size: 12px; } .revsp .lost { color: var(--kill); } .revsp .won { color: var(--good); }
+#repFrame { width: 100%; height: 75vh; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.chart.small { height: 90px; }
+ul.nl { margin: 2px 0 0; padding-left: 14px; } ul.nl li { margin: 1px 0; } ul.nl .tru { color: var(--muted); font-style: italic; }
+.econ { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+.etile { border-left: 3px solid var(--line); padding-left: 8px; font-size: 12px; }
+.etile .h { font-weight: 600; margin-bottom: 2px; } .etile .k { color: var(--muted); display: inline-block; min-width: 120px; }
+.etile b { font-family: var(--f-mono); } .etile .ok { color: var(--good); } .etile .bad { color: var(--kill); }
+.scrollx { overflow-x: auto; } .etab { border-collapse: collapse; font: 12px var(--f-mono); width: 100%; }
+.etab th, .etab td { padding: 2px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.etab th:first-child, .etab td:first-child { text-align: left; } .etab td[colspan] { text-align: left; white-space: normal; }
+.actbox { margin: 6px 0; font: 12px var(--f-mono); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; min-height: 22px; }
+.actbox .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 2px 0; }
+.actbox .row.old { opacity: .45; } .actbox .cat { font-weight: 700; min-width: 54px; }
+.actbox .u { display: inline-flex; align-items: center; gap: 2px; }
+.actbox img, .actbox .ic { width: 20px; height: 20px; border-radius: 3px; }
+.actbox .ic { display: inline-flex; align-items: center; justify-content: center; background: var(--line); font-size: 9px; width: auto; min-width: 20px; padding: 0 2px; }
+.citems { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 2px 0 10px; font: 12px var(--f-mono); }
+.citems .ci { display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px 1px 1px; }
+.citems .ci.imp { border-style: dashed; }
+.citems img, .citems .ic { width: 22px; height: 22px; border-radius: 3px; }
+.citems .ic { display: inline-flex; align-items: center; justify-content: center; background: var(--line); font-size: 9px; padding: 0 3px; width: auto; min-width: 22px; }
+.techs { font-size: 12px; margin: 4px 0 8px; max-height: 140px; overflow-y: auto; }
+.techs > div { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--line, #0001); }
+.techs > div.wip { opacity: .6; } .techs .tt { font-variant-numeric: tabular-nums; color: var(--muted); }
+.log { position: relative; max-height: 220px; overflow-y: auto; border-top: 1px solid var(--line); font-size: 13px; }
+.log div { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; gap: 8px; padding: 5px 4px;
+  border-bottom: 1px solid var(--line); cursor: pointer; }
+.log div:hover { background: var(--accent-soft); }
+.log .future { opacity: .4; }
+.log .now { background: var(--accent-soft); }
+.log .inf { color: var(--accent); }
+.log .tm, .log .bk { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.timeline { display: flex; gap: 10px; align-items: center; }
+.timeline .track { flex: 1; min-width: 0; position: relative; padding-top: 34px; }
+.timeline input { width: 100%; margin: 0; accent-color: var(--accent); }
+/* age-up marks above the scrubber: thumb travels between 8px and width-8px */
+.marks { position: absolute; left: 8px; right: 8px; top: 0; height: 34px; }
+.mark { position: absolute; transform: translateX(-50%); bottom: 2px; font-family: var(--f-mono); font-size: 10px;
+  line-height: 1; padding: 2px 4px; border-radius: 3px; color: var(--panel); cursor: pointer; border: 0; white-space: nowrap; }
+.mark::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 1px; height: 6px; background: inherit; }
+.mark.p2 { bottom: 17px; }
+/* basics marks under the scrubber (review only): one lane per player, bands at the bottom, events above */
+.bmarks { position: relative; margin: 4px 8px 0; height: 34px; }
+.bmarks[hidden] { display: none; }
+.blane { position: absolute; left: 0; right: 0; height: 16px; }
+.blane .lab { position: absolute; left: -8px; transform: translateX(-100%); font: 10px var(--f-mono); color: var(--muted); top: 3px; }
+.bband { position: absolute; bottom: 0; height: 5px; border-radius: 2px; cursor: pointer; }
+.bev { position: absolute; transform: translateX(-50%); bottom: 6px; font: 10px/1 var(--f-mono); padding: 0 2px; border: 0;
+  background: none; color: var(--ink, inherit); cursor: pointer; }
+.bev.bad { color: var(--warn); font-weight: 700; }
+/* buffs lane (review only; owner 2026-11-12): aura / cast buffs per player, "?" = damage the data does not explain */
+.fband { position: absolute; height: 3px; border-radius: 2px; cursor: pointer; opacity: .85; }
+.bfx-atk { background: #d2473c; } .bfx-arm { background: #3f7fd0; } .bfx-spd { background: #3fa45b; }
+.bfx-heal { background: #8bc34a; } .bfx-oth { background: #8a6fc4; }
+.btab .chip { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+.btab { display: grid; grid-template-columns: auto 1fr 1fr; gap: 3px 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.btab .k { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.btab .h { font-weight: 600; }
+.btab .bad { color: var(--warn); }
+.clock { font-family: var(--f-mono); font-size: 18px; font-variant-numeric: tabular-nums; min-width: 64px; }
+.warn { font-size: 12px; color: var(--warn); }
+.ctr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; font-size: 13px; }
+.ctr .k { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.ctr .big { font-family: var(--f-mono); font-size: 17px; font-variant-numeric: tabular-nums; }
+.ctr .note { color: var(--muted); font-size: 12px; }
+.fights { overflow-x: auto; }
+.fights table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fights th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.fights td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.fights tbody tr { cursor: pointer; }
+.fights tbody tr:hover, .fights tbody tr.now { background: var(--accent-soft); }
+.fights .num { font-family: var(--f-mono); text-align: right; white-space: nowrap; }
+.fights .units { color: var(--muted); font-size: 12px; }
+.fights .tag2 { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.fights .empty { color: var(--muted); padding: 10px 8px; }
+.warn ul { margin: 4px 0 0; padding-left: 18px; }
+.tag { font-family: var(--f-mono); font-size: 11px; color: var(--accent); border: 1px solid var(--accent);
+  padding: 0 6px; border-radius: 3px; letter-spacing: .04em; }
+#pop { position: fixed; z-index: 10; pointer-events: none; background: var(--panel); border: 2px solid var(--line);
+  border-radius: 5px; padding: 6px 8px; font-size: 12px; display: grid; grid-template-columns: 22px auto auto; gap: 3px 6px;
+  align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+#pop .h { grid-column: 1 / -1; font-family: var(--f-mono); color: var(--muted); }
+#pop img, #pop .sq { width: 20px; height: 20px; display: block; }
+#pop .n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.armies { font-size: 12px; color: var(--muted); font-family: var(--f-mono); display: flex; flex-direction: column; gap: 2px; }
+@media (max-width: 520px) { .readout { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Fogline Replay Reader</h1>
+    <span class="sub" id="matchline"></span>
+    <span class="tag" id="srcTag" hidden>SYNTHETIC SAMPLE</span>
+  </header>
+
+  <div class="controls">
+    <label class="ctl" for="game" id="gameCtl" hidden>Game
+      <select id="game"></select></label>
+    <label class="ctl" for="pov" id="povCtl">Sight
+      <select id="pov"></select></label>
+    <label class="ctl" for="vision"><input type="checkbox" id="vision" checked> Vision</label>
+    <label class="ctl" for="vilRes">Villagers
+      <select id="vilRes"><option value="0">All</option><option value="1">Food</option>
+        <option value="2">Wood</option><option value="3">Gold</option><option value="4">Stone</option></select></label>
+    <label class="ctl" for="armyMode">Army
+      <select id="armyMode"><option value="tri">Triangles</option><option value="icon">Icons × count</option></select></label>
+    <label class="ctl" for="bldMode">Buildings
+      <select id="bldMode"><option value="shape">Shapes by type</option><option value="icon">Icons</option></select></label>
+    <label class="ctl" for="heat">Army heat
+      <select id="heat"><option value="0">Off</option><option value="60">Last 60 s</option>
+        <option value="180">Last 3 min</option><option value="99999">Whole game so far</option></select></label>
+    <label class="ctl" for="nodesOn" id="nodesCtl" hidden><input type="checkbox" id="nodesOn" checked> Resources</label>
+    <label class="ctl" for="terrOn" id="terrCtl" hidden title="Tiles land units can't stand on (cliffs, deep water)"><input type="checkbox" id="terrOn" checked> Impassable</label>
+    <label class="ctl" for="reveal" id="revealCtl"><input type="checkbox" id="reveal"> Show true values</label>
+    <label class="ctl" for="camOn" id="camCtl" hidden><input type="checkbox" id="camOn" checked> Camera</label>
+    <label class="ctl" id="camTrailCtl" hidden>trail <select id="camTrail"><option value="0">off</option><option value="3" selected>3 s</option><option value="10">10 s</option></select></label>
+    <label class="ctl" for="foodOn" id="foodCtl" hidden title="Sight view only"><input type="checkbox" id="foodOn" checked> Food safety</label>
+    <label class="ctl" for="bisOn" id="bisCtl" hidden title="Equal distance to both main TCs"><input type="checkbox" id="bisOn"> TC midline</label>
+    <label class="ctl" for="ordOn" id="ordCtl" hidden><input type="checkbox" id="ordOn" checked> Orders</label>
+    <label class="ctl" for="actOn" id="actCtl" hidden title="Ring the units / buildings a player just gave a command to (move, attack, gather, build, queue, rally...): what they had selected"><input type="checkbox" id="actOn" checked> Command rings</label>
+    <label class="ctl" for="ohBar" id="ohCtl" hidden title="Observer bar like the in-game caster view: resources, rate / min, villagers per resource, pop, age, upgrades, production, landmark progress (both players, full values)"><input type="checkbox" id="ohBar" checked> Observer bar</label>
+    <label class="ctl" for="ohStats" id="ohStatsCtl" hidden title="Overview statistics over the map: villager work, idle time, collected, army value, worker kills, destroyed"><input type="checkbox" id="ohStats" checked> Stats</label>
+    <label class="ctl" for="ohRecap" id="ohRecapCtl" hidden title="Fight recap over the map after each fight: losses and damage dealt per unit type"><input type="checkbox" id="ohRecap" checked> Recap</label>
+    <label class="ctl" for="large"><input type="checkbox" id="large"> Large map</label>
+    <label class="ctl" for="font">Font
+      <select id="font"></select></label>
+    <label class="ctl" for="speed">Speed
+      <select id="speed"><option value="1">1×</option><option value="4">4×</option>
+        <option value="8" selected>8×</option><option value="16">16×</option><option value="32">32×</option></select></label>
+    <label class="ctl file" for="fileIn">Load view file <input type="file" id="fileIn" accept=".json,application/json"></label>
+  </div>
+
+  <div class="warn" id="warnBox" hidden></div>
+
+  <div id="ohudBar" style="margin:0 0 10px"></div>
+  <div class="grid" id="mainGrid">
+    <section class="box">
+      <h2><span>Map <button id="zoomReset" type="button" hidden title="Back to the whole map (or double-click the map)">Reset view</button>
+        <select id="rot" title="Turn the map (or Shift+drag on it)"><option value="45">Game view</option><option value="0">North up</option>
+          <option value="90">90°</option><option value="135">135°</option><option value="180">180°</option><option value="225">225°</option>
+          <option value="270">270°</option><option value="315">315°</option><option value="custom" hidden>custom</option></select></span><span id="mapNote"></span></h2>
+      <div style="position:relative"><canvas id="map" aria-label="Map of units at the current time"></canvas>
+        <div id="ohudStats" style="position:absolute;left:6px;bottom:6px;opacity:.94"></div><div id="ohudRecap" style="position:absolute;right:6px;bottom:6px;opacity:.96"></div></div>
+      <div id="pop" hidden></div>
+      <div class="actbox" id="actBox" hidden></div>
+      <div class="legend" id="legend"></div>
+      <div class="armies" id="vilmix"></div>
+      <div class="armies" id="armies"></div>
+    </section>
+
+    <section class="box" id="readBox">
+      <h2><span id="readTitle">Opponent read</span><span id="obsNote"></span></h2>
+      <div class="controls">
+        <label class="ctl" for="readMode" title="Gold: mines seen minus gold seen spent. Bank: all resources from villagers x one gather rate (rough). Castle timing: when they reach Castle, and how much what you scouted delays it">Read
+          <select id="readMode"><option value="gold">Gold</option><option value="bank">Bank (rough)</option><option value="castle">Castle timing</option><option value="econ">Economy (review)</option></select></label>
+        <label class="ctl" for="techOn" id="techCtl" hidden title="Review only: the game's own list of what they researched (hidden from you in the game)"><input type="checkbox" id="techOn"> Their techs (review)</label>
+      </div>
+      <div id="goldBox">
+        <div class="readout">
+          <div class="stat"><div class="k">Implied gold</div><div class="v" id="vGold">–</div><div class="n" id="vGoldN"></div></div>
+          <div class="stat"><div class="k">Gold villagers</div><div class="v" id="vGVil">–</div><div class="n" id="vGVilN"></div></div>
+        </div>
+        <canvas class="chart" id="goldChart" aria-label="Implied gold over time"></canvas>
+        <div class="techs" id="techList" hidden></div>
+      </div>
+      <div id="bankBox" hidden>
+        <div class="readout">
+          <div class="stat"><div class="k">Implied bank (rough)</div><div class="v" id="vBank">–</div><div class="n" id="vBankTrue"></div></div>
+          <div class="stat"><div class="k">Last 60 s</div><div class="v"><span class="pill" id="vTrend">–</span></div><div class="n" id="vTrendN"></div></div>
+        </div>
+        <canvas class="chart" id="bankChart" aria-label="Implied bank over time"></canvas>
+      </div>
+      <div id="castleBox" hidden>
+        <div class="readout">
+          <div class="stat"><div class="k" id="cProjK">Castle (projected)</div><div class="v" id="cProj">–</div><div class="n" id="cProjN"></div></div>
+          <div class="stat"><div class="k">Delay from what you saw</div><div class="v" id="cDelay">–</div><div class="n" id="cDelayN"></div></div>
+          <div class="stat"><div class="k">Off-path spending seen</div><div class="v" id="cOff">–</div><div class="n" id="cOffN"></div></div>
+        </div>
+        <div class="citems" id="cItems"></div>
+        <div class="n" id="castleNote" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
+      </div>
+      <div id="econBox" hidden>
+        <div class="econ" id="econTiles"></div>
+        <canvas class="chart small" id="natChart" aria-label="Natural food taken over time"></canvas>
+        <div class="legend" id="natLegend"></div>
+        <canvas class="chart" id="econChart" aria-label="Hunt premium and investments over time"></canvas>
+        <div class="legend" id="econLegend"></div>
+        <div class="scrollx"><table class="etab" id="econTable"></table></div>
+        <div class="n" style="font-size:12px;color:var(--muted);margin:4px 0 8px">Review only (true state of both players). Nominal = villagers on each
+          source × the wiki base gather rate × their gather techs; measured = bank change + everything spent; efficiency = measured ÷ nominal
+          (walking, drop-off distance, idle time, civ bonuses not modelled). Hunt premium = food gathered on deer / boar above the same villager
+          time on farms; map hunt = deer / boar further than 50 from their starting TC; investments = forward mills + outposts / towers / walls. Food "other" = food gathered minus natural and farm food:
+          passive or non-villager food (Malian cattle, Mongol pastures, fishing boats, trade) and whatever those two estimates miss.</div>
+      </div>
+      <div class="readout">
+        <div class="stat"><div class="k">Villagers</div><div class="v" id="vVil">–</div><div class="n" id="vVilN"></div></div>
+      </div>
+      <canvas class="chart small" id="vilChart" aria-label="Villager count over time"></canvas>
+      <div class="legend" id="chartLegend"></div>
+      <div id="foodBox" hidden>
+        <h2><span>Their safe food</span><span id="foodNote"></span></h2>
+        <div class="readout">
+          <div class="stat"><div class="k" id="fSafeK">Active safe food</div><div class="v" id="fSafe">–</div><div class="n" id="fSafeN"></div></div>
+          <div class="stat"><div class="k" id="fEtaK">Active runs out in</div><div class="v" id="fEta">–</div><div class="n" id="fEtaN"></div></div>
+          <div class="stat"><div class="k">Potential (scouted)</div><div class="v" id="fFarms">–</div><div class="n" id="fFarmsN"></div></div>
+        </div>
+        <canvas class="chart small" id="foodChart" aria-label="Opponent's safe natural food over time"></canvas>
+        <div class="legend" id="foodLegend"></div>
+      </div>
+      <div id="basicsBox" hidden>
+        <h2><span>Basics (review)</span><span id="basicsNote"></span></h2>
+        <div class="btab" id="basicsTab"></div>
+        <div class="n" style="font-size:12px;color:var(--muted);margin:4px 0 8px">True values of both players at this moment
+          (the basics page's checks). Marks under the timeline: bands = floating (red hard, amber soft), overqueue (purple),
+          army idle at home (grey); ↘ starts falling behind in gathering, ▸ raid, ⇨ push, ✕ dive on their TC, ◆ trade; bold orange = flagged. Click a mark to jump.</div>
+      </div>
+      <div id="buffBox" hidden>
+        <h2><span>Buffs (review)</span><span id="buffNote"></span></h2>
+        <div class="btab" id="buffTab"></div>
+        <div class="n" style="font-size:12px;color:var(--muted);margin:4px 0 8px">Aura and cast buffs worked out from positions
+          (aoe4world ability data: radius, source, effects) and recorded damage that the calculated stats do not explain.
+          Lane under the timeline: bands = buffs (red attack, blue armour, green speed, lime healing, violet other), ? = damage
+          off the calculated value with no known buff (click to jump).</div>
+      </div>
+      <h2><span>Your army vs what you saw</span><span id="ctrNote"></span></h2>
+      <div class="ctr" id="ctr"></div>
+      <h2><span>What you saw</span><span id="logCount"></span></h2>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+
+  <section class="box" id="revBox" hidden>
+    <h2><span>Review graphs <select id="revSel" aria-label="Graph"></select></span><span id="revNote"></span></h2>
+    <canvas class="chart rev" id="revChart" aria-label="Review graph over the replay's time; click to jump"></canvas>
+    <div class="legend" id="revLegend"></div>
+    <div class="revsp" id="revSpikes"></div>
+    <details id="revRep"><summary>Full reports (basics, spikes): times in them jump the replay</summary>
+      <div class="controls"><label class="ctl" for="repSel">Report <select id="repSel"></select></label></div>
+      <iframe id="repFrame" title="Report"></iframe>
+    </details>
+  </section>
+
+  <section class="box">
+    <h2><span>Fights</span><span id="fightNote"></span></h2>
+    <div class="controls">
+      <label class="ctl" for="skirm"><input type="checkbox" id="skirm"> Show skirmishes (under 3 deaths and under 400 resources)</label>
+    </div>
+    <div class="fights"><table>
+      <thead><tr><th>#</th><th>Time</th><th>Length</th><th id="thP1">P1 lost</th><th id="thP2">P2 lost</th><th class="num" title="Who came out ahead in resource value lost">Value edge</th><th id="thExtra">Army before → after</th></tr></thead>
+      <tbody id="fightRows"></tbody></table></div>
+  </section>
+
+  <div class="timeline">
+    <button id="play" type="button">Play</button>
+    <span class="clock" id="clock">0:00</span>
+    <div class="track">
+      <div class="marks" id="ageMarks"></div>
+      <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Replay time">
+      <div class="bmarks" id="basicsMarks" hidden></div>
+      <div class="bmarks" id="buffMarks" hidden></div>
+    </div>
+    <span class="clock" id="clockEnd">0:00</span>
+  </div>
+</div>
+
+<script>/*__HUD_JS__*/</script>
+<script>
+const SAMPLE = /*__SAMPLE__*/null;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmtT = t => { t = Math.max(0, Math.round(t)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+const fmtN = v => v == null ? "–" : Math.round(v).toLocaleString("en-US");
+const pc = i => css("--p" + (((i - 1) % 4) + 1));
+
+let OHUD = null, BLINK = null;
+// HUD landmark click (owner 2026-11-11): centre the map on it, zoomed in, a yellow ring blinking for 3 s
+function hudFocus(x, z) {
+  ZM.z = Math.max(ZM.z, 3); ZM.cx = x; ZM.cz = z; $("zoomReset").hidden = false;
+  BLINK = { x, z, until: performance.now() + 3000 };
+  const iv = setInterval(() => { render(); if (performance.now() > BLINK.until) { clearInterval(iv); render(); } }, 125);
+  $("map").scrollIntoView({ block: "nearest" });
+}
+let D = null, fi = 0, playing = false, lastTs = 0, tGame = 0, ghosts = {};
+
+function load(data, isSample) {
+  if (!data || data.format !== "a4d-view/1") throw new Error("Not a view file. Run export_view.py on analyze.py output.");
+  D = data; fi = 0; tGame = D.ft[0];
+  for (const k in bldKindCache) delete bldKindCache[k];
+  $("srcTag").hidden = !data.synthetic;
+  $("matchline").textContent = D.players.map(p => `P${p.idx} ${p.name} (${civName(p.civ)})`).join("  vs  ");
+  $("bldMode").options[1].disabled = !D.icons;
+  if (!D.icons) $("bldMode").value = "shape";
+  const pov = $("pov"); pov.innerHTML = "";
+  D.players.forEach(p => pov.add(new Option(`P${p.idx} ${p.name} · ${civName(p.civ)}`, String(p.idx))));
+  pov.add(new Option("Everything (review)", "all"));
+  // lite build (build_viewer.py --lite, owner 2026-11-10: the basic package): full information only - no sight
+  // selector, no opponent read / inference panels; the review graphs keep army value and income with their gaps
+  const lite = !!D.lite;
+  $("povCtl").hidden = $("revealCtl").hidden = $("readBox").hidden = lite;
+  $("mainGrid").classList.toggle("large", lite);
+  if (lite) pov.value = "all";
+  $("scrub").max = D.ft.length - 1; $("scrub").value = 0;
+  $("nodesCtl").hidden = !(D.nodes && D.nodes.length);
+  $("terrCtl").hidden = !D.blocked;
+  $("camCtl").hidden = $("camTrailCtl").hidden = !D.camera;
+  $("ordCtl").hidden = !D.orders;
+  $("actCtl").hidden = !D.acts;
+  $("foodCtl").hidden = $("bisCtl").hidden = !D.food || !!D.lite; foodSeries = {};
+  $("armyMode").options[1].disabled = !D.icons;
+  $("armyMode").options[1].textContent = D.icons ? "Icons × count" : "Icons × count (run tools/icons.py)";
+  if (!D.icons) $("armyMode").value = "tri";
+  $("clockEnd").textContent = fmtT(D.ft[D.ft.length - 1]);
+  const w = D.warnings || [];
+  $("warnBox").hidden = !w.length;
+  $("warnBox").innerHTML = w.length ? "Analysis notes<ul>" + w.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>" : "";
+  // observer bar / stats / recap (owner 2026-11-11: the in-game caster layout; viewer/hud.js, data analyzer/hud.py)
+  OHUD = D.hud && window.FoglineHUD ? FoglineHUD.create({ bar: $("ohudBar"), stats: $("ohudStats"), recap: $("ohudRecap"), data: D.hud,
+    icon: bp => D.icons && D.icons[bp], techIcon: a => D.techIcons && D.techIcons[a], pcolor: p => css("--p" + p), civName, focus: hudFocus }) : null;
+  $("ohCtl").hidden = $("ohStatsCtl").hidden = $("ohRecapCtl").hidden = !OHUD;
+  if (!OHUD) $("ohudBar").innerHTML = $("ohudStats").innerHTML = $("ohudRecap").innerHTML = "";
+  setRotSelect();
+  computeBounds(); ZM.z = 1; ZM.cx = ZM.cz = null; $("zoomReset").hidden = true; computeGhosts(); buildLog(); fightSel = null; buildFights(); buildAgeMarks(); buildBasicsMarks(); buildBuffMarks(); buildReview(); render();
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+let B = null;
+// zoom / pan: the view is a square window into the map bounds B (zoom 1 = whole map)
+const ZM = { z: 1, cx: null, cz: null };
+// rotation: ROT (radians) turns the map; Game view = 45 deg (the in-game camera looks toward +x,+z)
+let ROT = Math.PI / 4;
+try { const r = localStorage.getItem("fogline.rot"); if (r !== null && isFinite(Number(r))) ROT = Number(r); } catch (e) {}
+const rotFit = () => Math.abs(Math.cos(ROT)) + Math.abs(Math.sin(ROT));
+function V() {
+  const s = B.s * rotFit() / ZM.z, cx = ZM.cx ?? B.x0 + B.s / 2, cz = ZM.cz ?? B.z0 + B.s / 2;
+  return { x0: cx - s / 2, z0: cz - s / 2, s, cx, cz };
+}
+// screen offset (fraction of the view, right / up) -> world offset, undoing the rotation
+function screenToWorld(u, v) {
+  const c = Math.cos(ROT), sn = Math.sin(ROT);
+  return [u * c + v * sn, -u * sn + v * c];
+}
+function setRot(r) {
+  ROT = ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  try { localStorage.setItem("fogline.rot", String(ROT)); } catch (e) {}
+  const deg = Math.round(ROT * 180 / Math.PI) % 360, opt = [...$("rot").options].find(o => Number(o.value) === deg);
+  $("rot").value = opt ? opt.value : "custom";
+  render();
+}
+function setRotSelect() { const deg = Math.round(ROT * 180 / Math.PI) % 360, opt = [...$("rot").options].find(o => Number(o.value) === deg); $("rot").value = opt ? opt.value : "custom"; }
+function resetZoom() { ZM.z = 1; ZM.cx = ZM.cz = null; $("zoomReset").hidden = true; render(); }
+function computeBounds() {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const fr of D.frames) for (const e of fr) if (e[3] != null) {
+    x0 = Math.min(x0, e[3]); x1 = Math.max(x1, e[3]); z0 = Math.min(z0, e[4]); z1 = Math.max(z1, e[4]); }
+  if (!isFinite(x0)) { x0 = 0; x1 = 1; z0 = 0; z1 = 1; }
+  const s = Math.max(x1 - x0, z1 - z0) * 1.08 || 1, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  B = { x0: cx - s / 2, z0: cz - s / 2, s };
+}
+// last known position of enemy buildings, per observer, by frame index
+function computeGhosts() {
+  ghosts = {};
+  for (const p of D.players) {
+    const bit = 1 << (p.idx - 1), mem = {}, byFrame = [];
+    D.frames.forEach((fr, i) => {
+      for (const e of fr) if (e[0] !== p.idx && e[6] === 2 && e[5] && (e[5] & bit)) mem[e[1]] = e;
+      byFrame[i] = Object.values(mem);   // snapshot reference list
+    });
+    ghosts[p.idx] = byFrame;
+  }
+}
+const povVal = () => $("pov").value;
+const observer = () => povVal() === "all" ? (Number($("pov").dataset.obs) || D.players[0].idx) : Number(povVal());
+const target = () => { const o = observer(); return (D.players.find(p => p.idx !== o) || D.players[0]).idx; };
+const reveal = () => povVal() === "all" || $("reveal").checked;
+const aIdx = () => { const t = D.ft[fi]; let i = D.t.findIndex(x => x >= t); return i < 0 ? D.t.length - 1 : i; };
+
+function sizeCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, r.width, r.height];
+}
+
+const ageFill = a => css("--age" + (a >= 1 && a <= 4 ? a : 1));
+
+function clusters(list, R) {
+  const cs = [];
+  for (const e of list) {
+    let c = cs.find(c => c.owner === e[0] && Math.hypot(c.x - e[3], c.z - e[4]) < R);
+    if (!c) { c = { owner: e[0], x: e[3], z: e[4], n: 0, v: 0, comp: {} }; cs.push(c); }
+    c.x = (c.x * c.n + e[3]) / (c.n + 1); c.z = (c.z * c.n + e[4]) / (c.n + 1); c.n++;
+    const info = D.bpinfo[e[2]]; c.v += info.cost || 0;
+    c.comp[info.name] = (c.comp[info.name] || 0) + 1;
+    c.byBp = c.byBp || {}; c.byBp[e[2]] = (c.byBp[e[2]] || 0) + 1;
+    c.ageV = c.ageV || {}; const ag = info.age || 1; c.ageV[ag] = (c.ageV[ag] || 0) + (info.cost || 1);
+  }
+  return cs;
+}
+
+// Sight of one player: lit union of every own unit's/building's sight circle,
+// outlined once along the union's outer edge (no per-unit circles).
+let edgeCv = null;
+function drawVision(g, W, H, px, pz, own, pid) {
+  const k = W / V().s, circles = [];
+  for (const e of own) { const s = D.bpinfo[e[2]].sight; if (s) circles.push([px(e[3], e[4]), pz(e[3], e[4]), s * k]); }
+  g.fillStyle = css("--fogdark"); g.fillRect(0, 0, W, H);
+  g.fillStyle = css("--lit"); g.beginPath();
+  for (const [x, y, r] of circles) { g.moveTo(x + r, y); g.arc(x, y, r, 0, 2 * Math.PI); }
+  g.fill("nonzero");
+  // edge: stroke every circle, then erase each circle's interior; only the union boundary survives
+  const dpr = window.devicePixelRatio || 1;
+  if (!edgeCv) edgeCv = document.createElement("canvas");
+  edgeCv.width = Math.round(W * dpr); edgeCv.height = Math.round(H * dpr);
+  const h = edgeCv.getContext("2d"); h.setTransform(dpr, 0, 0, dpr, 0, 0);
+  h.strokeStyle = pc(pid); h.lineWidth = 1.5;
+  for (const [x, y, r] of circles) { h.beginPath(); h.arc(x, y, r, 0, 2 * Math.PI); h.stroke(); }
+  h.globalCompositeOperation = "destination-out"; h.fillStyle = "#000";
+  for (const [x, y, r] of circles) { if (r > 1) { h.beginPath(); h.arc(x, y, r - 0.9, 0, 2 * Math.PI); h.fill(); } }
+  h.globalCompositeOperation = "source-over";
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = .9; g.drawImage(edgeCv, 0, 0); g.restore();
+}
+
+// resource nodes: trees from the latest full snapshot, everything else from the latest snapshot
+const NODE_STYLE = { tree: ["--n-tree", "dot"], gold: ["--n-gold", "dia"], silver: ["--age3", "dia"], stone: ["--n-stone", "dia"],
+  berry: ["--n-berry", "dot2"], deer: ["--n-deer", "dot2"], boar: ["--n-animal", "dot2"],
+  sheep: ["--n-animal", "dot2"], fish: ["--n-other", "dot2"], carcass: ["--n-animal", "x"],
+  olive: ["--n-tree", "dot2"], wolf: ["--n-other", "dot2"], relic: ["--n-gold", "x"],
+  site: ["--n-other", "ring"], straggler: ["--n-tree", "dot2"], stealth: ["--n-stealth", "dot"],
+  other: ["--n-other", "dot"] };
+// resource nodes on the map now; sight view: only those this player has had in sight by now
+function nodesNow() {
+  const t = D.ft[fi]; let last = -1, lastFull = -1;
+  D.nodes.forEach((s, i) => { if (s.t <= t) { last = i; if (s.full) lastFull = i; } });
+  if (last < 0) return [];
+  const treeT = new Set(["tree", "straggler", "stealth"].map(n => D.nodeTypes.indexOf(n)));
+  const list = (lastFull >= 0 ? D.nodes[lastFull].n.filter(n => treeT.has(n[0])) : [])
+    .concat(D.nodes[last].n.filter(n => !treeT.has(n[0])));
+  const pv = povVal(), ex = pv === "all" ? null : (D.explored || {})[pv] || {};
+  return ex ? list.filter(n => ex[n[3]] <= t) : list;
+}
+// tiles: real footprints (v7 dump). A square of n tiles is centred on a tile centre (n odd) or a
+// tile corner (n even) of the map grid; drawn as a world-space polygon so it turns with the map.
+const TILE = 4;
+function snapC(v, o, n) { return n % 2 ? o + (Math.floor((v - o) / TILE) + .5) * TILE : o + Math.round((v - o) / TILE) * TILE; }
+function tileRect(px, pz, x, z, n) {
+  const o = D.tile0 || [0, 0], cx = snapC(x, o[0], n), cz = snapC(z, o[1], n), h = n * TILE / 2;
+  return [[cx - h, cz - h], [cx + h, cz - h], [cx + h, cz + h], [cx - h, cz + h]].map(([a, b]) => [px(a, b), pz(a, b)]);
+}
+function polyPath(g, P) { g.beginPath(); g.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) g.lineTo(P[i][0], P[i][1]); g.closePath(); }
+function drawBlocked(g, px, pz) {
+  const o = D.tile0 || [0, 0], cols = { w: css("--t-water"), c: css("--t-cliff") };
+  for (const k of ["w", "c"]) {
+    g.fillStyle = cols[k]; g.globalAlpha = .75; g.beginPath();
+    D.blocked.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] === k) {
+      const a = o[0] + c * TILE, b = o[1] + r * TILE, P = [[a, b], [a + TILE, b], [a + TILE, b + TILE], [a, b + TILE]].map(([x, z]) => [px(x, z), pz(x, z)]);
+      g.moveTo(P[0][0], P[0][1]); for (let i = 1; i < 4; i++) g.lineTo(P[i][0], P[i][1]); g.closePath();
+    } });
+    g.fill();
+  }
+  g.globalAlpha = 1;
+}
+function drawNodes(g, px, pz) {
+  for (const [ti, x, z, , tiles] of nodesNow()) {
+    const [tok, shape] = NODE_STYLE[D.nodeTypes[ti]] || NODE_STYLE.other, X = px(x, z), Y = pz(x, z);
+    g.fillStyle = g.strokeStyle = css(tok);
+    if (tiles && shape !== "dot") { polyPath(g, tileRect(px, pz, x, z, tiles)); g.fill(); continue; }
+    if (shape === "dot") { g.fillRect(X - 1, Y - 1, 2, 2); }
+    else if (shape === "dot2") { g.beginPath(); g.arc(X, Y, 2.4, 0, 7); g.fill(); }
+    else if (shape === "dia") { g.beginPath(); g.moveTo(X, Y - 5); g.lineTo(X + 5, Y); g.lineTo(X, Y + 5); g.lineTo(X - 5, Y); g.closePath(); g.fill(); }
+    else if (shape === "ring") { g.lineWidth = 1.5; g.beginPath(); g.arc(X, Y, 5, 0, 7); g.stroke(); }
+    else { g.lineWidth = 1.5; g.beginPath(); g.moveTo(X - 3, Y - 3); g.lineTo(X + 3, Y + 3); g.moveTo(X + 3, Y - 3); g.lineTo(X - 3, Y + 3); g.stroke(); }
+  }
+}
+
+const RES_TOK = { 1: "--r-food", 2: "--r-wood", 3: "--n-gold", 4: "--n-stone" };
+const RES_NAME = { 1: "food", 2: "wood", 3: "gold", 4: "stone" };
+// villagers on one resource: soft heat per villager, plus a count per group
+function drawGatherHeat(g, px, pz, vils, vr) {
+  const col = css(RES_TOK[vr]), R = 22;
+  for (const e of vils) {
+    const x = px(e[3], e[4]), y = pz(e[3], e[4]), gr = g.createRadialGradient(x, y, 0, x, y, R);
+    gr.addColorStop(0, col); gr.addColorStop(1, "transparent");
+    g.globalAlpha = .35; g.fillStyle = gr; g.fillRect(x - R, y - R, 2 * R, 2 * R);
+  }
+  g.globalAlpha = 1;
+  g.font = "600 12px " + css("--f-mono"); g.textAlign = "center"; g.textBaseline = "middle";
+  for (const c of clusters(vils, V().s * 0.05)) {
+    const x = px(c.x, c.z), y = pz(c.x, c.z) - 16;
+    g.lineWidth = 3; g.strokeStyle = css("--panel"); g.strokeText("×" + c.n, x, y);
+    g.fillStyle = pc(c.owner); g.fillText("×" + c.n, x, y);
+  }
+  g.textBaseline = "alphabetic";
+}
+// per player: villagers by resource among those shown (own: all; enemy: only visible)
+function vilMix(shown) {
+  const by = {};
+  for (const e of shown) if (e[6] === 0) {
+    const m = by[e[0]] = by[e[0]] || { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, walk: 0 };
+    m[e[7] & 7]++; if (e[7] & 8) m.walk++; if (e[7] & 16) m.garr = (m.garr || 0) + 1;
+  }
+  $("vilmix").innerHTML = Object.entries(by).map(([p, m]) =>
+    `<span style="color:${pc(Number(p))}">P${p} villagers${povVal() !== "all" && p !== povVal() ? " (visible)" : ""}: `
+    + [1, 2, 3, 4].map(r => `${RES_NAME[r]} ${m[r]}`).join(" · ")
+    + ` · not gathering ${m[0]}${m.garr ? ` (${m.garr} garrisoned)` : ""}${m.walk ? ` · ${m.walk} walking to/from` : ""}</span>`).join("");
+}
+
+// army heat: military positions over a time window, per player, on a coarse grid.
+// Sight view: own army always, enemy army only where it was visible at that moment.
+const HEAT_N = 72;
+function drawArmyHeat(g, W, H, win, px, pz) {
+  const pv = povVal(), o = Number(pv), t = D.ft[fi], cell = W / HEAT_N;
+  const grids = {};
+  for (let i = fi; i >= 0 && t - D.ft[i] <= win; i--) {
+    for (const e of D.frames[i]) {
+      if (e[6] !== 1 || e[3] == null) continue;
+      if (pv !== "all" && e[0] !== o && !(e[5] && (e[5] & (1 << (o - 1))))) continue;
+      const gx = Math.floor(px(e[3], e[4]) / W * HEAT_N), gz = Math.floor(pz(e[3], e[4]) / H * HEAT_N);   // screen grid
+      if (gx < 0 || gz < 0 || gx >= HEAT_N || gz >= HEAT_N) continue;
+      const a = grids[e[0]] = grids[e[0]] || new Float32Array(HEAT_N * HEAT_N);
+      a[gz * HEAT_N + gx] += 1;
+    }
+  }
+  for (const [p, a] of Object.entries(grids)) {
+    let mx = 0; for (const v of a) if (v > mx) mx = v;
+    if (!mx) continue;
+    g.fillStyle = pc(Number(p));
+    for (let k = 0; k < a.length; k++) if (a[k]) {
+      g.globalAlpha = .12 + .55 * Math.sqrt(a[k] / mx);
+      g.fillRect((k % HEAT_N) * cell, Math.floor(k / HEAT_N) * cell, cell + .5, cell + .5);
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+// civ display names (game race names; unknown ones are tidied up)
+const CIV_NAMES = { english: "English", french: "French", hre: "Holy Roman Empire", rus: "Rus", mongol: "Mongols",
+  chinese: "Chinese", abbasid: "Abbasid Dynasty", sultanate: "Delhi Sultanate", delhi: "Delhi Sultanate",
+  malian: "Malians", ottoman: "Ottomans", japanese: "Japanese", byzantine: "Byzantines",
+  abbasid_ha_01: "Ayyubids", french_ha_01: "Jeanne d'Arc", hre_ha_01: "Order of the Dragon",
+  chinese_ha_01: "Zhu Xi's Legacy", templar: "Knights Templar", lancaster: "House of Lancaster",
+  byzantine_ha_mac: "Macedonian Dynasty", japanese_ha_sen: "Sengoku Daimyo", sultanate_ha_tug: "Tughlaq Dynasty",
+  mongol_ha_gol: "Golden Horde" };
+const civName = c => CIV_NAMES[c] || String(c || "?").replace(/_ha_/, " ").replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase());
+
+// building types by blueprint name (first match wins)
+const BLD_KINDS = [["farm", /resource_farm/], ["tc", /town_center/], ["landmark", /landmark|wonder/],
+  ["other", /aqueduct|cistern|runestone|passive_trait/],
+  ["military", /barracks|archery|stable|siege|workshop|unit_(infantry|cavalry|ranged|siege|mercenary|naval)|mercenary|warcamp|dock/],
+  ["religious", /religious|monastery|mosque|prayer|temple|church|shrine/],
+  ["defense", /defense_|_tower|keep|outpost|bastion/],
+  ["house", /house/], ["eco", /mill|econ_|lumber|mining|market|trade|food_|wood_/],
+  ["tech", /tech_|blacksmith|university|madrasa|forge/]];
+const bldKindCache = {};
+function bldKind(bpi) {
+  if (!(bpi in bldKindCache)) { const bp = D.bps[bpi] || ""; bldKindCache[bpi] = D.bpinfo[bpi].wall ? "wall" : ((BLD_KINDS.find(([, re]) => re.test(bp)) || ["other"])[0]); }
+  return bldKindCache[bpi];
+}
+// walls and aqueducts as lines (owner): each piece joined to its two nearest pieces of the same owner and kind
+// within the kind's link distance. Palisade (wood): brown line with a player-colour outline; stone walls:
+// thicker grey line; aqueducts (Byzantine, joining cisterns): thin grey line. Gates: a thicker stroke of
+// their wall's style, GATE_LEN long, along the wall direction.
+const GATE_LEN = 6;
+const WALL_STYLE = {
+  wood: { link: 7, w: 2, min: 2, color: () => css("--r-wood"), outline: true },
+  stone: { link: 7, w: 3.5, min: 3, color: () => css("--n-stone"), outline: false },
+  aqueduct: { link: 12, w: 0, min: 1.5, max: 1.5, color: () => css("--muted"), outline: false },   // thin at any zoom
+};
+function wallKind(bp) { return /aqueduct/.test(bp) ? "aqueduct" : /palisade/.test(bp) ? "wood" : /_wall|wall_|gate/.test(bp) ? "stone" : null; }
+function wallLines(g, px, pz, pieces, colorOf, alpha) {
+  const ppu = Math.hypot(px(1, 0) - px(0, 0), pz(1, 0) - pz(0, 0));
+  const groups = {};
+  for (const w of pieces) (groups[w[0] + "|" + w[3]] = groups[w[0] + "|" + w[3]] || []).push(w);
+  const nbOf = (L, a, link) => L.filter(b => b !== a).map(b => [Math.hypot(b[1] - a[1], b[2] - a[2]), b])
+    .filter(([d]) => d <= link).sort((p, q) => p[0] - q[0]).slice(0, 2);
+  g.globalAlpha = alpha;
+  for (const [key, L] of Object.entries(groups)) {
+    const [o, kind] = key.split("|"), S = WALL_STYLE[kind], w = Math.min(S.max || 1e9, Math.max(S.min, S.w * ppu));
+    const path = () => {
+      g.beginPath();
+      for (const a of L) {
+        const nb = nbOf(L, a, S.link);
+        if (!nb.length) { g.moveTo(px(a[1], a[2]), pz(a[1], a[2])); g.lineTo(px(a[1], a[2]) + .01, pz(a[1], a[2])); }
+        for (const [, b] of nb) { g.moveTo(px(a[1], a[2]), pz(a[1], a[2])); g.lineTo(px(b[1], b[2]), pz(b[1], b[2])); }
+      }
+    };
+    const gates = (width) => {
+      for (const a of L) {
+        if (!a[4]) continue;
+        const nb = nbOf(L, a, S.link);
+        let dx = 1, dz = 0;
+        if (nb.length === 2) { dx = nb[1][1][1] - nb[0][1][1]; dz = nb[1][1][2] - nb[0][1][2]; }
+        else if (nb.length === 1) { dx = nb[0][1][1] - a[1]; dz = nb[0][1][2] - a[2]; }
+        const n = Math.hypot(dx, dz) || 1, h = GATE_LEN / 2;
+        dx /= n; dz /= n; g.lineWidth = width; g.beginPath();
+        g.moveTo(px(a[1] - dx * h, a[2] - dz * h), pz(a[1] - dx * h, a[2] - dz * h));
+        g.lineTo(px(a[1] + dx * h, a[2] + dz * h), pz(a[1] + dx * h, a[2] + dz * h)); g.stroke();
+      }
+    };
+    g.lineCap = "round";
+    if (S.outline) {                       // player colour underneath, a little wider
+      g.strokeStyle = colorOf(Number(o)); g.lineWidth = w + 3; path(); g.stroke();
+      g.lineCap = "butt"; gates(2 * w + 3); g.lineCap = "round";
+    }
+    g.strokeStyle = S.color(); g.lineWidth = w; path(); g.stroke();
+    g.lineCap = "butt"; gates(2 * w);
+  }
+  g.globalAlpha = 1; g.lineCap = "butt";
+}
+function drawBuilding(g, X, Y, e, useIcon, px, pz) {
+  const k = bldKind(e[2]), col = pc(e[0]), ink = css("--panel"), tiles = D.bpinfo[e[2]].tiles;
+  g.fillStyle = col; g.strokeStyle = col;
+  if (tiles && px) {               // real footprint; the type mark / icon inside when it fits
+    const P = tileRect(px, pz, e[3], e[4], tiles), side = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]);
+    polyPath(g, P);
+    if (k === "farm") { g.globalAlpha = .35; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1; return; }
+    // opaque: a building covers the terrain (and impassable shading) under it
+    g.fillStyle = ink; g.fill(); g.fillStyle = col;
+    g.globalAlpha = k === "wall" ? .6 : .4; g.fill(); g.globalAlpha = 1; g.lineWidth = 1.5; g.stroke();
+    if (side < 18 || k === "wall") return;
+    const sc = Math.min(1, side / 26);
+    g.save(); g.translate(X, Y); g.scale(sc, sc); drawBuilding(g, 0, 0, e, useIcon); g.restore(); return;
+  }
+  if (k === "wall") { g.globalAlpha = .45; g.fillRect(X - 2, Y - 2, 4, 4); g.globalAlpha = 1; return; }
+  if (k === "farm") { g.globalAlpha = .35; g.lineWidth = 1; g.strokeRect(X - 7, Y - 7, 14, 14); g.globalAlpha = 1; return; }
+  const im = useIcon ? icon(e[2]) : null;
+  if (im) { const S = k === "tc" || k === "landmark" ? 22 : 17;
+    g.fillStyle = ink; g.fillRect(X - S / 2 - 2, Y - S / 2 - 2, S + 4, S + 4);
+    g.drawImage(im, X - S / 2, Y - S / 2, S, S); g.lineWidth = 2; g.strokeStyle = col; g.strokeRect(X - S / 2 - 2, Y - S / 2 - 2, S + 4, S + 4); return; }
+  g.lineWidth = 1.6;
+  const mark = f => { g.strokeStyle = ink; g.fillStyle = ink; g.lineWidth = 1.6; f(); };
+  switch (k) {
+    case "tc": g.fillRect(X - 9, Y - 9, 18, 18); mark(() => { g.beginPath(); g.arc(X, Y, 4.5, 0, 7); g.stroke(); }); break;
+    case "landmark": g.beginPath(); g.moveTo(X, Y - 10); g.lineTo(X + 10, Y); g.lineTo(X, Y + 10); g.lineTo(X - 10, Y); g.closePath(); g.fill();
+      mark(() => { g.beginPath(); g.arc(X, Y, 2.5, 0, 7); g.fill(); }); break;
+    case "military": g.fillRect(X - 6.5, Y - 6.5, 13, 13);
+      mark(() => { g.beginPath(); g.moveTo(X - 4, Y - 4); g.lineTo(X + 4, Y + 4); g.moveTo(X + 4, Y - 4); g.lineTo(X - 4, Y + 4); g.stroke(); }); break;
+    case "defense": g.beginPath(); g.moveTo(X, Y - 8); g.lineTo(X + 7.5, Y + 6); g.lineTo(X - 7.5, Y + 6); g.closePath(); g.fill(); break;
+    case "eco": g.beginPath(); g.arc(X, Y, 6, 0, 7); g.fill(); break;
+    case "religious": g.fillRect(X - 6, Y - 6, 12, 12);
+      mark(() => { g.beginPath(); g.moveTo(X, Y - 4); g.lineTo(X, Y + 4); g.moveTo(X - 4, Y); g.lineTo(X + 4, Y); g.stroke(); }); break;
+    case "tech": g.fillRect(X - 6, Y - 6, 12, 12); mark(() => { g.beginPath(); g.arc(X, Y, 2, 0, 7); g.fill(); }); break;
+    case "house": g.fillRect(X - 3.5, Y - 3.5, 7, 7); break;
+    default: g.globalAlpha = .7; g.fillRect(X - 4, Y - 4, 8, 8); g.globalAlpha = 1;
+  }
+}
+
+// army groups as icon × count rows (icons come from tools/icons.py, embedded in the view file)
+const iconImg = {};
+function icon(bpi) {
+  const bp = D.bps[bpi]; if (!D.icons || !D.icons[bp]) return null;
+  if (!iconImg[bp]) { const im = new Image(); im.onload = () => render(); im.src = D.icons[bp]; iconImg[bp] = im; }
+  return iconImg[bp].complete ? iconImg[bp] : null;
+}
+function drawIconClusters(g, px, pz, cs) {
+  const S = 20;
+  g.font = "600 11px " + css("--f-mono"); g.textAlign = "left"; g.textBaseline = "middle";
+  for (const c of cs) {
+    const rows = Object.entries(c.byBp).sort((a, b) => b[1] - a[1]), shownRows = rows.slice(0, 4);
+    const x0 = px(c.x, c.z) - 24, y0 = pz(c.x, c.z) - shownRows.length * (S + 2) / 2;
+    g.fillStyle = css("--panel"); g.globalAlpha = .85;
+    g.fillRect(x0 - 3, y0 - 3, 58, shownRows.length * (S + 2) + 4 + (rows.length > 4 ? 12 : 0)); g.globalAlpha = 1;
+    g.strokeStyle = pc(c.owner); g.lineWidth = 2;
+    g.strokeRect(x0 - 3, y0 - 3, 58, shownRows.length * (S + 2) + 4 + (rows.length > 4 ? 12 : 0));
+    shownRows.forEach(([bpi, n], k) => {
+      const y = y0 + k * (S + 2), im = icon(Number(bpi));
+      if (im) g.drawImage(im, x0, y, S, S); else { g.fillStyle = ageFill(D.bpinfo[bpi].age); g.fillRect(x0, y, S, S); }
+      g.fillStyle = css("--ink"); g.fillText("×" + n, x0 + S + 4, y + S / 2);
+    });
+    if (rows.length > 4) { g.fillStyle = css("--muted"); g.fillText(`+${rows.length - 4} more`, x0, y0 + 4 * (S + 2) + 4); }
+  }
+  g.textBaseline = "alphabetic";
+}
+
+// hover an army group: its units as icon × count (only what the map shows, so sight rules hold)
+let hoverCs = [];
+function showPop(ev) {
+  const r = $("map").getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  let best = null, bd = 30;
+  for (const h of hoverCs) { const d = Math.hypot(h.x - mx, h.y - my); if (d < bd) { bd = d; best = h.c; } }
+  const pop = $("pop");
+  if (!best) { pop.hidden = true; return; }
+  const rows = Object.entries(best.byBp).sort((a, b) => b[1] - a[1]);
+  pop.style.borderColor = pc(best.owner);
+  pop.innerHTML = `<span class="h">P${best.owner} · ${best.n} units · ${fmtN(best.v)} res</span>` + rows.map(([bpi, n]) => {
+    const info = D.bpinfo[bpi], src = D.icons && D.icons[D.bps[bpi]];
+    const ic = src ? `<img src="${src}" alt="">` : `<span class="sq" style="background:${ageFill(info.age)}"></span>`;
+    return `${ic}<span class="n">×${n}</span><span>${esc(info.name)}</span>`;
+  }).join("");
+  pop.hidden = false;
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  pop.style.left = Math.min(ev.clientX + 16, innerWidth - pw - 8) + "px";
+  pop.style.top = Math.min(ev.clientY + 12, innerHeight - ph - 8) + "px";
+}
+let popEv = null;
+// wheel: zoom at the cursor; drag: pan; double-click: whole map
+$("map").addEventListener("wheel", ev => {
+  ev.preventDefault();
+  const r = $("map").getBoundingClientRect(), v = V();
+  const u = (ev.clientX - r.left) / r.width - .5, w = .5 - (ev.clientY - r.top) / r.height;
+  const [dx0, dz0] = screenToWorld(u * v.s, w * v.s), wx = v.cx + dx0, wz = v.cz + dz0;   // world point under the cursor
+  const z = Math.min(40, Math.max(1, ZM.z * (ev.deltaY < 0 ? 1.25 : 0.8)));
+  const s = B.s * rotFit() / z, [dx1, dz1] = screenToWorld(u * s, w * s);
+  ZM.z = z; ZM.cx = wx - dx1; ZM.cz = wz - dz1;
+  if (z === 1) { ZM.cx = ZM.cz = null; }
+  $("zoomReset").hidden = z === 1;
+  render();
+}, { passive: false });
+let drag = null;
+$("map").addEventListener("mousedown", ev => { if (ev.button === 0) drag = { x: ev.clientX, y: ev.clientY, v: V(), rot: ROT, moved: false, turn: ev.shiftKey }; });
+window.addEventListener("mousemove", ev => {
+  if (!drag) return;
+  const r = $("map").getBoundingClientRect(), dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+  if (!drag.moved) return;
+  $("pop").hidden = true;
+  if (drag.turn) {        // Shift+drag: turn the map around its centre
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const a0 = Math.atan2(drag.y - cy, drag.x - cx), a1 = Math.atan2(ev.clientY - cy, ev.clientX - cx);
+    setRot(drag.rot - (a1 - a0));
+    return;
+  }
+  const [wdx, wdz] = screenToWorld(dx / r.width * drag.v.s, -dy / r.height * drag.v.s);
+  ZM.cx = drag.v.cx - wdx; ZM.cz = drag.v.cz - wdz;
+  $("zoomReset").hidden = false;
+  render();
+});
+window.addEventListener("mouseup", () => { drag = null; });
+$("map").addEventListener("dblclick", resetZoom);
+$("map").addEventListener("click", ev => {
+  const r = $("map").getBoundingClientRect();
+  if (Math.hypot(ev.clientX - (r.right - 22), ev.clientY - (r.top + 22)) <= 17 && !(drag && drag.moved)) setRot(0);
+});
+$("zoomReset").onclick = resetZoom;
+$("rot").onchange = () => { if ($("rot").value !== "custom") setRot(Number($("rot").value) * Math.PI / 180); };
+$("map").style.cursor = "grab";
+$("map").addEventListener("mousemove", ev => { popEv = ev; if (!(drag && drag.moved)) showPop(ev); });
+$("map").addEventListener("mouseleave", () => { popEv = null; $("pop").hidden = true; });
+
+// player cameras from the replay file. Sight view: only that player's own camera.
+// D.camera rows: [t, centre x, z, 4 ground corners x, z] (the screen's footprint on a flat ground plane,
+// 16:9 assumed), plus a trail of recent view centres (off / 3 s / 10 s).
+function camAt(track, t) {
+  let lo = 0, hi = track.length - 1, r = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (track[m][0] <= t) { r = m; lo = m + 1; } else hi = m - 1; }
+  return r;
+}
+function drawCameras(g, px, pz) {
+  const pv = povVal(), t = D.ft[fi], trail = Number($("camTrail").value);
+  for (const [p, track] of Object.entries(D.camera)) {
+    if (pv !== "all" && p !== pv) continue;
+    const i = camAt(track, t); if (i < 0) continue;
+    g.strokeStyle = pc(Number(p)); g.fillStyle = pc(Number(p));
+    g.globalAlpha = .5; g.beginPath(); let started = false;
+    for (let j = i; trail && j >= 0 && t - track[j][0] <= trail; j--) {
+      const X = px(track[j][1], track[j][2]), Y = pz(track[j][1], track[j][2]);
+      started ? g.lineTo(X, Y) : g.moveTo(X, Y); started = true;
+    }
+    g.lineWidth = 1.5; g.stroke(); g.globalAlpha = 1;
+    const r = track[i];
+    if (r.length >= 11) {
+      g.beginPath();
+      for (let c = 0; c < 4; c++) { const X = px(r[3 + 2 * c], r[4 + 2 * c]), Y = pz(r[3 + 2 * c], r[4 + 2 * c]); c ? g.lineTo(X, Y) : g.moveTo(X, Y); }
+      g.closePath(); g.setLineDash([2, 3]); g.lineWidth = 2; g.stroke(); g.setLineDash([]);
+    }
+    g.beginPath(); g.arc(px(r[1], r[2]), pz(r[1], r[2]), 3, 0, 7); g.fill();
+  }
+}
+
+// unit orders from the replay file, last ORDER_S seconds. Sight view: only that player's own orders
+// (a player knows their own commands, never the opponent's). Solid = order, dashed = shift-queued.
+const ORDER_S = 4;
+// command rings (owner): the units / buildings a player just sent a command to, ringed for ACT_S seconds
+// in the command's colour, label at the group. The replay has no selection record; the receivers of a
+// command are what was selected. Sight view: own commands only (no maphack); Everything: both players.
+const ACT_S = 1.5;
+const ACT_COL = { move: "--ink", attack: "--kill", gather: "--n-gold", build: "--r-wood", queue: "--accent", cancel: "--muted",
+  rally: "--age2", garrison: "--muted", other: "--muted" };
+const actIdx = {};
+function drawActs(g, px, pz, fr) {
+  const now = D.ft[fi], pv = povVal(), byId = new Map(fr.map(e => [e[1], e]));
+  const ppu = Math.hypot(px(1, 0) - px(0, 0), pz(1, 0) - pz(0, 0));
+  g.font = "600 10px " + css("--f-mono"); g.textAlign = "center"; g.textBaseline = "bottom";
+  for (const [p, L] of Object.entries(D.acts)) {
+    if (pv !== "all" && Number(p) !== Number(pv)) continue;
+    let i = actIdx[p] ?? 0;                                   // first command at or after now - ACT_S
+    if (i >= L.length || L[i][0] > now - ACT_S) i = 0;
+    while (i < L.length && L[i][0] < now - ACT_S) i++;
+    actIdx[p] = i;
+    for (let j = i; j < L.length && L[j][0] <= now; j++) {
+      const [t, ci, ids] = L[j], cat = D.actCats[ci], a = 1 - (now - t) / ACT_S;
+      g.strokeStyle = g.fillStyle = css(ACT_COL[cat] || "--muted"); g.globalAlpha = .45 + .55 * a; g.lineWidth = 2.5;
+      let sx = 0, sz = 0, n = 0, top = Infinity;
+      for (const id of ids) {
+        const e = byId.get(id); if (!e || e[3] == null) continue;
+        const X = px(e[3], e[4]), Y = pz(e[3], e[4]), tiles = e[6] === 2 ? D.bpinfo[e[2]].tiles : null;
+        const r = tiles ? Math.max(10, tiles * 2 * ppu + 4) : 7;
+        g.beginPath(); g.arc(X, Y, r, 0, 7); g.stroke();
+        sx += X; sz += Y; n++; top = Math.min(top, Y - r);
+      }
+      if (n) g.fillText(cat, sx / n, top - 2);
+    }
+  }
+  g.globalAlpha = 1; g.textBaseline = "alphabetic";
+  actBox(byId, pv);
+}
+// command box under the map (owner): what the latest commands went to, as icon x count per type, like the
+// game's selection panel. Highlighted ones (last ACT_S s) bold, the few before them faded.
+function actBox(byId, pv) {
+  const now = D.ft[fi], rows = [];
+  for (const [p, L] of Object.entries(D.acts)) {
+    if (pv !== "all" && Number(p) !== Number(pv)) continue;
+    let i = L.length - 1;
+    while (i >= 0 && L[i][0] > now) i--;
+    for (let k = 0; i >= 0 && k < 4 && now - L[i][0] <= 20; i--, k++) rows.push([Number(p), ...L[i]]);
+  }
+  rows.sort((a, b) => b[1] - a[1]);
+  const box = $("actBox");
+  box.hidden = false;
+  if (!rows.length) { box.innerHTML = `<span class="muted">no command in the last 20 s</span>`; return; }
+  box.innerHTML = rows.slice(0, 5).map(([p, t, ci, ids]) => {
+    const cat = D.actCats[ci], by = {};
+    for (const id of ids) { const e = byId.get(id); const b = e ? e[2] : -1; by[b] = (by[b] || 0) + 1; }
+    const units = Object.entries(by).sort((a, b) => b[1] - a[1]).map(([b, n]) => {
+      b = Number(b);
+      if (b < 0) return `<span class="u muted">${n} gone</span>`;
+      const nm = D.bpinfo[b].name, src = D.icons && D.icons[D.bps[b]];
+      return `<span class="u" title="${esc(nm)}">${src ? `<img src="${src}" alt="${esc(nm)}">` : `<span class="ic">${esc(nm)}</span>`}${n > 1 ? "×" + n : ""}</span>`;
+    }).join("");
+    return `<div class="row${now - t > ACT_S ? " old" : ""}"><span style="color:${pc(p)}">P${p}</span><span>${fmtT(t)}</span>`
+      + `<span class="cat" style="color:${css(ACT_COL[cat] || "--muted")}">${cat}</span>${units}</div>`;
+  }).join("");
+}
+function drawOrders(g, px, pz) {
+  const pv = povVal(), t = D.ft[fi], ty = D.orderTypes;
+  for (const [p, list] of Object.entries(D.orders)) {
+    if (pv !== "all" && p !== pv) continue;
+    let i = camAt(list, t);
+    const col = pc(Number(p));
+    for (; i >= 0 && t - list[i][0] <= ORDER_S; i--) {
+      const [ot, k, sh, fx, fz, tx, tz] = list[i]; if (tx == null) continue;
+      const a = 1 - (t - ot) / ORDER_S, name = ty[k];
+      g.globalAlpha = .25 + .65 * a; g.strokeStyle = col; g.fillStyle = col;
+      g.lineWidth = name === "gather" || name === "build" ? 1 : 1.6;
+      g.setLineDash(sh ? [5, 4] : []);
+      const X0 = px(fx, fz), Y0 = pz(fx, fz), X1 = px(tx, tz), Y1 = pz(tx, tz);
+      g.beginPath(); g.moveTo(X0, Y0); g.lineTo(X1, Y1); g.stroke(); g.setLineDash([]);
+      if (name === "attack" || name === "attack-move") {   // × on the target
+        g.beginPath(); g.moveTo(X1 - 4, Y1 - 4); g.lineTo(X1 + 4, Y1 + 4); g.moveTo(X1 + 4, Y1 - 4); g.lineTo(X1 - 4, Y1 + 4); g.stroke();
+      } else { g.beginPath(); g.arc(X1, Y1, name === "move" ? 3.5 : 2.5, 0, 7); g.stroke(); }
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+// compass (top right): where world north (+z) points on screen; click it for north up
+function drawCompass(g, W) {
+  const x = W - 22, y = 22, r = 13, nx = -Math.sin(ROT), ny = -Math.cos(ROT);
+  g.save(); g.globalAlpha = .85; g.fillStyle = css("--panel"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.beginPath(); g.arc(x, y, r + 4, 0, 7); g.fill(); g.stroke();
+  g.strokeStyle = css("--ink"); g.fillStyle = css("--ink"); g.lineWidth = 2;
+  g.beginPath(); g.moveTo(x - nx * r * .7, y - ny * r * .7); g.lineTo(x + nx * r * .1, y + ny * r * .1); g.stroke();
+  g.beginPath(); g.moveTo(x + nx * r * .45, y + ny * r * .45); g.lineTo(x + nx * r * .05 - ny * 4, y + ny * r * .05 + nx * 4);
+  g.lineTo(x + nx * r * .05 + ny * 4, y + ny * r * .05 - nx * 4); g.closePath(); g.fill();
+  g.font = "700 9px " + css("--f-mono"); g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("N", x + nx * r * .95, y + ny * r * .95);
+  g.restore(); g.textBaseline = "alphabetic";
+}
+function drawMap() {
+  const [g, W, H] = sizeCanvas($("map"));
+  g.clearRect(0, 0, W, H);
+  const VV = V(), rc = Math.cos(ROT), rs = Math.sin(ROT);
+  const px = (x, z) => W / 2 + ((x - VV.cx) * rc - (z - VV.cz) * rs) / VV.s * W;
+  const pz = (x, z) => H / 2 - ((x - VV.cx) * rs + (z - VV.cz) * rc) / VV.s * H;
+  const fr = D.frames[fi], pv = povVal();
+  const visible = e => pv === "all" || e[0] === Number(pv) || (e[5] && (e[5] & (1 << (Number(pv) - 1))));
+  const shown = fr.filter(e => e[3] != null && visible(e));
+  if (pv !== "all" && $("vision").checked) drawVision(g, W, H, px, pz, fr.filter(e => e[0] === Number(pv) && e[3] != null), Number(pv));
+  if (D.blocked && $("terrOn").checked) drawBlocked(g, px, pz);
+  if (D.nodes && D.nodes.length && $("nodesOn").checked) drawNodes(g, px, pz);
+  if (Number($("heat").value) && !Number($("vilRes").value)) drawArmyHeat(g, W, H, Number($("heat").value), px, pz);
+  if (D.fights) drawFightMarks(g, px, pz);
+  if (D.food && $("foodOn").checked && pv !== "all") drawFoodSafety(g, W, H, px, pz);
+  if (D.camera && $("camOn").checked) drawCameras(g, px, pz);
+  if (D.orders && $("ordOn").checked) drawOrders(g, px, pz);
+  // ghosts: enemy buildings seen before, not visible now
+  if (pv !== "all") {
+    const now = new Set(shown.map(e => e[1]));
+    g.strokeStyle = css("--ghost"); g.lineWidth = 1.2; g.setLineDash([3, 2]);
+    for (const e of ghosts[Number(pv)][fi]) if (!now.has(e[1])) {
+      const tl_ = D.bpinfo[e[2]].tiles;
+      if (tl_) { polyPath(g, tileRect(px, pz, e[3], e[4], tl_)); g.stroke(); continue; }
+      const w = D.bpinfo[e[2]].wall ? 4 : 12; g.strokeRect(px(e[3], e[4]) - w / 2, pz(e[3], e[4]) - w / 2, w, w);
+    }
+    g.setLineDash([]);
+  }
+  const bIcons = $("bldMode").value === "icon" && D.icons;
+  // farms first (under everything), then the rest
+  for (const pass of [0, 1]) for (const e of shown) if (e[6] === 2 && (bldKind(e[2]) === "farm") === (pass === 0) && !wallKind(D.bps[e[2]] || ""))
+    drawBuilding(g, px(e[3], e[4]), pz(e[3], e[4]), e, bIcons, px, pz);
+  wallLines(g, px, pz, shown.filter(e => e[6] === 2 && wallKind(D.bps[e[2]] || ""))
+    .map(e => [e[0], e[3], e[4], wallKind(D.bps[e[2]]), /gate/.test(D.bps[e[2]] || "")]), pc, .9);
+  const vr = Number($("vilRes").value);
+  if (vr) drawGatherHeat(g, px, pz, shown.filter(e => e[6] === 0 && (e[7] & 7) === vr), vr);
+  for (const e of shown) if (e[6] === 0 || e[6] === 3) {
+    if (vr && !(e[6] === 0 && (e[7] & 7) === vr)) g.globalAlpha = .25;
+    g.beginPath(); g.arc(px(e[3], e[4]), pz(e[3], e[4]), e[6] === 0 ? 2.6 : 3.4, 0, 7);
+    g.fillStyle = ageFill(D.bpinfo[e[2]].age); g.fill();
+    g.lineWidth = e[6] === 0 ? 1.1 : 1.6; g.strokeStyle = pc(e[0]); g.stroke();
+    g.globalAlpha = 1;
+  }
+  if (D.acts && $("actOn").checked) drawActs(g, px, pz, fr); else if ($("actBox")) $("actBox").hidden = true;
+  vilMix(shown);
+  const cs = vr ? [] : clusters(shown.filter(e => e[6] === 1), VV.s * 0.06);   // villager view: armies hidden (groups split as you zoom in)
+  hoverCs = cs.map(c => ({ c, x: px(c.x, c.z), y: pz(c.x, c.z) }));
+  if (popEv) showPop(popEv);   // keep the popup current while playing
+  g.font = "500 11px " + css("--f-mono"); g.textAlign = "center";
+  const maxV = Math.max(400, ...cs.map(c => c.v));
+  if ($("armyMode").value === "icon" && D.icons) { drawIconClusters(g, px, pz, cs); }
+  else for (const c of cs) {
+    const s = 9 + 26 * Math.sqrt(c.v / maxV), x = px(c.x, c.z), y = pz(c.x, c.z);
+    g.beginPath(); g.moveTo(x, y - s * .66); g.lineTo(x + s * .58, y + s * .34); g.lineTo(x - s * .58, y + s * .34); g.closePath();
+    const dom = Object.entries(c.ageV).sort((a, b) => b[1] - a[1])[0][0];
+    g.fillStyle = ageFill(Number(dom)); g.fill();
+    g.lineWidth = 2.5; g.strokeStyle = pc(c.owner); g.stroke();
+    g.fillStyle = css("--ink"); g.fillText(`${c.n} · ${fmtN(c.v)}`, x, y + s * .34 + 13);
+  }
+  if (BLINK && performance.now() < BLINK.until && Math.floor((BLINK.until - performance.now()) / 250) % 2 === 0) {   // landmark jump
+    g.beginPath(); g.arc(px(BLINK.x, BLINK.z), pz(BLINK.x, BLINK.z), 22, 0, 7); g.lineWidth = 4; g.strokeStyle = "#ffd84a"; g.stroke(); }
+  drawCompass(g, W);
+  $("mapNote").textContent = pv === "all" ? "everything" : `P${pv} sight`;
+  $("armies").innerHTML = vr ? "" : cs.sort((a, b) => b.v - a.v).slice(0, 6).map(c =>
+    `<span style="color:${pc(c.owner)}">P${c.owner} ${c.n} units, ${fmtN(c.v)} res: ${Object.entries(c.comp).map(([k, n]) => n + "× " + esc(k)).join(", ")}</span>`).join("");
+}
+
+function drawLine(g, xs, ys, X, Y, color, dash) {
+  g.strokeStyle = color; g.lineWidth = 1.6; g.setLineDash(dash || []); g.beginPath();
+  let on = false;
+  ys.forEach((y, i) => { if (y == null) { on = false; return; } const a = X(xs[i]), b = Y(y); on ? g.lineTo(a, b) : g.moveTo(a, b); on = true; });
+  g.stroke(); g.setLineDash([]);
+}
+function niceTicks(lo, hi, n) {
+  const raw = (hi - lo) / n, p = Math.pow(10, Math.floor(Math.log10(raw || 1))), m = raw / p;
+  const step = (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p, out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v);
+  return out;
+}
+function chart(canvas, series, cursorT) {
+  const [g, W, H] = sizeCanvas(canvas);
+  g.clearRect(0, 0, W, H);
+  const L = 46, R = 8, T = 8, Bm = 18, t = D.t, t0 = t[0], t1 = t[t.length - 1];
+  let lo = 0, hi = 1;
+  for (const s of series) for (const v of s.y) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  const X = x => L + (x - t0) / (t1 - t0 || 1) * (W - L - R), Y = y => T + (1 - (y - lo) / (hi - lo || 1)) * (H - T - Bm);
+  g.font = "11px " + css("--f-mono"); g.fillStyle = css("--muted"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const v of niceTicks(lo, hi, 3)) { g.beginPath(); g.moveTo(L, Y(v)); g.lineTo(W - R, Y(v)); g.stroke(); g.fillText(fmtN(v), L - 5, Y(v)); }
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const v of niceTicks(t0, t1, 5)) g.fillText(fmtT(v), X(v), H - Bm + 4);
+  if (lo < 0) { g.strokeStyle = css("--muted"); g.beginPath(); g.moveTo(L, Y(0)); g.lineTo(W - R, Y(0)); g.stroke(); }
+  for (const s of series) drawLine(g, t, s.y, X, Y, s.color, s.dash);
+  g.strokeStyle = css("--accent"); g.lineWidth = 1; g.beginPath(); g.moveTo(X(cursorT), T); g.lineTo(X(cursorT), H - Bm); g.stroke();
+  const ai = aIdx();
+  for (const s of series) if (s.y[ai] != null) { g.fillStyle = s.color; g.beginPath(); g.arc(X(t[ai]), Y(s.y[ai]), 3.2, 0, 7); g.fill(); }
+}
+
+// ---- opponent's safe natural food (analyzer/food.py). Safety score of a spot for the opponent P
+// against you O = base (TC distances, + cover under their TC) + aura (army groups within a fixed
+// radius, theirs minus yours) + arrival (who gets there first; worse as your main army closes in).
+// Safe when > 0.
+let foodSeries = {};
+function idxAt(arr, t, key) {   // last index with key(arr[i]) <= t, or -1
+  let lo = 0, hi = arr.length - 1, r = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (key(arr[m]) <= t) { r = m; lo = m + 1; } else hi = m - 1; }
+  return r;
+}
+function foodRow(key, t) {
+  const rows = D.food && D.food[key]; if (!rows || !rows.length) return null;
+  const i = idxAt(rows, t, r => r.t); return i < 0 ? null : rows[i];
+}
+function foodScore(x, z, g) {
+  const P = D.foodParams, h = Math.hypot;
+  const dp = h(x - g.tcP[0], z - g.tcP[1]), dO = h(x - g.tcO[0], z - g.tcO[1]);
+  const base = (dO - dp) / ((dO + dp) || 1) + (dp <= P.TC_COVER ? P.TC_COVER_BONUS : 0);
+  const aura = gs => gs.reduce((s, [gx, gz, v]) => s + v * Math.max(0, 1 - h(x - gx, z - gz) / P.AURA_R), 0);
+  const ap = aura(g.groupsP), ao = aura(g.groupsO), aur = (ap - ao) / (ap + ao + P.AURA_V0);
+  let arr = 0;
+  if (g.armyO) {
+    const de = h(x - g.armyO[0], z - g.armyO[1]);
+    let dd = dp; if (g.armyP) dd = Math.min(dd, h(x - g.armyP[0], z - g.armyP[1]));
+    const vo = g.armyO[2], vp = g.armyP ? g.armyP[2] : 0;
+    arr = (de - dd) / ((de + dd) || 1) * (vo + vp ? vo / (vo + vp) : 0);
+  }
+  return base + aur + arr;
+}
+const FOOD_TYPES = ["berry", "deer", "boar", "carcass", "sheep"];
+function drawFoodSafety(g, W, H, px, pz) {
+  const o = Number(povVal()), p = target(), r = foodRow(`${o}->${p}`, D.ft[fi]); if (!r) return;
+  const G = r.geo, cP = pc(p), cO = pc(o);
+  // equidistant line: perpendicular bisector of the two main TCs (base term = 0)
+  const mx = (G.tcP[0] + G.tcO[0]) / 2, mz = (G.tcP[1] + G.tcO[1]) / 2, dx = G.tcP[0] - G.tcO[0], dz = G.tcP[1] - G.tcO[1];
+  const L = B.s * 2, n = Math.hypot(dx, dz) || 1, ux = -dz / n, uz = dx / n;
+  g.save(); g.strokeStyle = css("--muted"); g.lineWidth = 1.2; g.setLineDash([8, 6]); g.globalAlpha = .7;
+  if ($("bisOn").checked) { g.beginPath(); g.moveTo(px(mx - ux * L, mz - uz * L), pz(mx - ux * L, mz - uz * L)); g.lineTo(px(mx + ux * L, mz + uz * L), pz(mx + ux * L, mz + uz * L)); g.stroke(); }
+  // army auras (fixed radius) of each side's groups
+  const R = D.foodParams.AURA_R / V().s * W;
+  for (const [grp, col] of [[G.groupsP, cP], [G.groupsO, cO]]) for (const [x, z, v] of grp) {
+    if (v < 150) continue;
+    g.strokeStyle = col; g.globalAlpha = .45; g.setLineDash([3, 4]); g.lineWidth = 1.2;
+    g.beginPath(); g.arc(px(x, z), pz(x, z), R, 0, 7); g.stroke();
+  }
+  g.setLineDash([]); g.globalAlpha = 1;
+  // their main TC; assumed (mirror of yours) until you have seen it
+  g.strokeStyle = cP; g.lineWidth = 2;
+  if (G.tcAssumed) g.setLineDash([2, 3]);
+  g.beginPath(); g.arc(px(G.tcP[0], G.tcP[1]), pz(G.tcP[0], G.tcP[1]), 10, 0, 7); g.stroke(); g.setLineDash([]);
+  if (G.tcAssumed) { g.fillStyle = cP; g.font = "600 11px " + css("--f-mono"); g.textAlign = "center"; g.fillText("TC?", px(G.tcP[0], G.tcP[1]), pz(G.tcP[0], G.tcP[1]) - 14); }
+  // their TC berries while assumed (dashed, "berries?"), and the next spot they'd move to (arrow)
+  if (r.tcBerries && r.tcBerries[3]) {
+    const [bx, bz] = r.tcBerries; g.strokeStyle = cP; g.setLineDash([2, 3]); g.lineWidth = 1.5; g.globalAlpha = .8;
+    g.beginPath(); g.arc(px(bx, bz), pz(bx, bz), 9, 0, 7); g.stroke(); g.setLineDash([]);
+    g.fillStyle = cP; g.font = "600 10px " + css("--f-mono"); g.textAlign = "center"; g.fillText("berries?", px(bx, bz), pz(bx, bz) - 12);
+    g.globalAlpha = 1;
+  }
+  const cur = r.active <= 1 ? r.current : null;
+  if (cur) {      // the group they are assumed to be eating now
+    g.strokeStyle = cP; g.lineWidth = 2.2; g.globalAlpha = .9;
+    g.beginPath(); g.arc(px(cur.x, cur.z), pz(cur.x, cur.z), 12, 0, 7); g.stroke();
+    g.fillStyle = cP; g.font = "600 10px " + css("--f-mono"); g.textAlign = "center"; g.fillText("now?", px(cur.x, cur.z), pz(cur.x, cur.z) - 15);
+    g.globalAlpha = 1;
+  }
+  if (r.next) {
+    const from = cur ? [cur.x, cur.z] : r.tcBerries ? [r.tcBerries[0], r.tcBerries[1]] : G.tcP, X0 = px(from[0], from[1]), Y0 = pz(from[0], from[1]), X1 = px(r.next.x, r.next.z), Y1 = pz(r.next.x, r.next.z);
+    const ang = Math.atan2(Y1 - Y0, X1 - X0);
+    g.strokeStyle = cP; g.fillStyle = cP; g.lineWidth = 1.6; g.setLineDash([6, 4]); g.globalAlpha = .85;
+    g.beginPath(); g.moveTo(X0, Y0); g.lineTo(X1, Y1); g.stroke(); g.setLineDash([]);
+    g.beginPath(); g.moveTo(X1, Y1); g.lineTo(X1 - 9 * Math.cos(ang - .4), Y1 - 9 * Math.sin(ang - .4));
+    g.lineTo(X1 - 9 * Math.cos(ang + .4), Y1 - 9 * Math.sin(ang + .4)); g.closePath(); g.fill();
+    g.font = "600 10px " + css("--f-mono"); g.textAlign = "center"; g.fillText("next", X1, Y1 + 16); g.globalAlpha = 1;
+  }
+  // unsafe but taken: their gatherers seen on food that scores unsafe for them
+  for (const k of r.risky || []) {
+    g.strokeStyle = cP; g.lineWidth = 2.5; g.setLineDash([]); g.globalAlpha = .95;
+    g.beginPath(); g.arc(px(k.x, k.z), pz(k.x, k.z), 11, 0, 7); g.stroke();
+    g.fillStyle = cP; g.font = "700 12px " + css("--f-mono"); g.textAlign = "center"; g.fillText("!", px(k.x, k.z), pz(k.x, k.z) - 14);
+    g.globalAlpha = 1;
+  }
+  // known food spots: ring in their colour when safe for them (stronger = safer), yours when not
+  const ft = new Set(FOOD_TYPES.map(n => D.nodeTypes.indexOf(n)));
+  for (const [ti, x, z] of nodesNow()) {
+    if (!ft.has(ti)) continue;
+    const sc = foodScore(x, z, G), a = Math.min(1, Math.abs(sc) / 1.5);
+    g.strokeStyle = sc > 0 ? cP : cO; g.globalAlpha = .3 + .65 * a; g.lineWidth = 1 + 1.4 * a;
+    g.beginPath(); g.arc(px(x, z), pz(x, z), 6, 0, 7); g.stroke();
+  }
+  g.restore();
+}
+function drawFood(o, p) {
+  const key = `${o}->${p}`, has = D.food && D.food[key] && D.food[key].length;
+  $("foodBox").hidden = !has; if (!has) return;
+  if (!foodSeries[key]) {
+    const rows = D.food[key];
+    const pick = f => D.t.map(t => { const i = idxAt(rows, t, r => r.t); return i < 0 ? null : f(rows[i]); });
+    foodSeries[key] = { active: pick(r => r.active), potential: pick(r => r.potential), unsafe: pick(r => r.unsafe),
+                        trueActive: pick(r => r.true ? r.true.active : null) };
+  }
+  const r = foodRow(key, D.ft[fi]);
+  $("foodNote").textContent = r && r.geo.tcAssumed ? "their TC assumed (not seen yet)" : "";
+  if (!r) { ["fSafe", "fSafeN", "fEta", "fEtaN", "fFarms", "fFarmsN"].forEach(id => $(id).innerHTML = ""); return; }
+  const tb = r.tcBerries, cur = r.active <= 1 ? r.current : null;
+  $("fSafe").textContent = cur ? fmtN(cur.left) : fmtN(r.active);
+  $("fSafeK").textContent = cur ? `Now on ${cur.type} (assumed)` : "Active safe food";
+  $("fEtaK").textContent = cur ? `${cur.type[0].toUpperCase() + cur.type.slice(1)} runs out in` : "Active runs out in";
+  // notes as bullet lists (owner: easier to read than one " · " line)
+  const ul = items => `<ul class="nl">${items.filter(Boolean).map(x => `<li>${x}</li>`).join("")}</ul>`;
+  const safe = cur ? [`active food gone`, `safety score ${cur.score >= 0 ? "+" : ""}${cur.score}`]
+    : [r.sheep ? `${r.sheep} sheep` : "", r.carcass ? `carcasses ${fmtN(r.carcass)}` : "",
+       tb ? `TC berries ${fmtN(tb[2])}${tb[3] ? " (assumed)" : ""}` : "no TC berries"];
+  if (reveal() && r.true) {      // hidden information: review only
+    const T = r.true, eat = Object.entries(T.eating).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${n}`).join(", ");
+    safe.push(`<span class="tru">true active ${fmtN(T.active)}: ${T.sheep} sheep, carcasses ${fmtN(T.carcass)}, TC berries ${fmtN(T.tcBerries)}</span>`,
+              `<span class="tru">really eating: ${eat || "nothing"}</span>`);
+  }
+  $("fSafeN").innerHTML = ul(safe);
+  $("fEta").textContent = r.eta == null ? "–" : r.eta > 3600 ? "> 60 min" : fmtT(r.eta);
+  $("fEta").className = "v" + (r.eta != null && r.eta <= 90 ? " spending" : "");
+  $("fEtaN").innerHTML = ul([`${r.nActive} villagers on it${r.consAssumed ? " (assumed: half of est.)" : " (seen)"}`,
+    r.next ? `then ${esc(r.next.type)} ${fmtN(r.next.left)} (score ${r.next.score >= 0 ? "+" : ""}${r.next.score})` : "then: nothing safe scouted"]);
+  $("fFarms").textContent = fmtN(r.potential);
+  $("fFarmsN").innerHTML = ul([`${r.potGroups} safe groups`, `${fmtN(r.unsafe)} not safe`, `${r.farms} farms seen`,
+    (r.risky || []).length ? "taking unsafe: " + r.risky.map(k => `${esc(k.type)} (${k.n} vil${k.n > 1 ? "s" : ""}, ${k.score})`).join(", ") : ""]);
+  chart($("foodChart"), [{ y: foodSeries[key].active, color: pc(p) }, { y: foodSeries[key].potential, color: pc(p), dash: [5, 3] },
+    { y: foodSeries[key].unsafe, color: css("--ghost"), dash: [2, 3] }]
+    .concat(reveal() ? [{ y: foodSeries[key].trueActive, color: css("--truth"), dash: [4, 3] }] : []), D.ft[fi]);
+  $("foodLegend").innerHTML = `<span><i class="sw" style="background:${pc(p)}"></i>Active: sheep seen, carcasses at their TC, their TC berries (assumed until scouted); eaten first</span>`
+    + `<span><i class="sw" style="background:${pc(p)};opacity:.5"></i>Potential (dashed): scouted food that is safe for them</span>`
+    + `<span><i class="sw" style="background:${css("--ghost")}"></i>Scouted, not safe for them</span>`
+    + (reveal() ? `<span><i class="sw" style="background:${css("--truth")}"></i>True active food (review only)</span>` : "");
+}
+
+function drawRead() {
+  const o = observer(), p = target(), key = `${o}->${p}`, E = D.estimate[key], T = D.truth[String(p)], ai = aIdx();
+  const tp = D.players.find(x => x.idx === p);
+  $("readTitle").textContent = `Reading P${p} ${tp.name} · ${civName(tp.civ)}`;
+  $("obsNote").textContent = `from P${o}'s sight`;
+  const hasGold = E.gold_est && E.gold_est.some(v => v != null), hasK = E.bank_est_k && E.bank_est_k[0] != null;
+  const cT = D.ft[fi], acc = css("--accent"), tru = css("--truth"), mut = css("--muted"), kil = css("--kill"), gc = css("--n-gold");
+  // gold first: remaining amounts of mines seen, minus gold seen spent; no gather rate
+  const mode = readMode(hasGold);
+  $("goldBox").hidden = mode !== "gold"; $("bankBox").hidden = mode !== "bank"; $("castleBox").hidden = mode !== "castle";
+  $("econBox").hidden = mode !== "econ";
+  const hasTech = mode === "gold" && hasGold && E.gold_est_tech && D.techs && D.techs[String(p)];
+  $("techCtl").hidden = !hasTech;
+  const techOn = hasTech && $("techOn").checked;
+  const g = hasGold ? (techOn ? E.gold_est_tech[ai] : E.gold_est[ai]) : null;
+  $("vGold").textContent = g == null ? "–" : fmtN(g);
+  $("vGoldN").textContent = !hasGold ? "no mine amounts in this recording"
+    : g == null ? "not tracked from Castle on (relics, trade)"
+    : (techOn ? `minus ${fmtN(E.tech_gold[ai])} on techs · ` : "")
+      + (reveal() && T.gold && T.gold[ai] != null ? `true ${fmtN(T.gold[ai])}` : "mines seen, minus gold seen spent");
+  const gv = E.gold_vil;
+  $("vGVil").textContent = gv ? fmtN(E.gold_vil_now[ai]) : "–";
+  $("vGVilN").textContent = gv ? `on gold now · ${gv[ai]} seen mining in the last ${D.params.window}s` : "";
+  $("vVil").textContent = fmtN(E.n_est[ai]);
+  $("vVilN").textContent = `seen ${E.n_seen[ai]}` + (hasK ? ` · ${E.kills[ai]} seen killed` : "")
+    + (reveal() ? ` · true ${T.villagers[ai]}` : "");
+  $("goldChart").hidden = !hasGold;
+  if (hasGold && mode === "gold") chart($("goldChart"), [{ y: E.gold_est, color: gc, dash: techOn ? [2, 2] : null }]
+    .concat(techOn ? [{ y: E.gold_est_tech, color: gc }] : [])
+    .concat(reveal() && T.gold ? [{ y: T.gold, color: tru, dash: [4, 3] }] : []), cT);
+  // what they researched up to now: paid (start) -> done, gold
+  $("techList").hidden = !techOn;
+  if (techOn) {
+    const now = D.t[ai], L = D.techs[String(p)].filter(x => x.t <= now);
+    $("techList").innerHTML = L.length ? L.map(x => `<div class="${x.done > now ? "wip" : ""}"><span class="tt">${fmtT(x.t)}→${fmtT(x.done)}</span>`
+      + `<span>${D.techIcons && D.techIcons[x.attrib] ? `<img src="${D.techIcons[x.attrib]}" alt="" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;border-radius:2px">` : ""}${esc(x.name)}</span><span class="num">${x.gold == null ? "cost ?" : x.gold + " g"}</span></div>`).join("")
+      : `<div class="muted">no research yet</div>`;
+  }
+  chart($("vilChart"), [{ y: E.n_est, color: acc }].concat(hasK ? [{ y: E.n_est_k, color: kil }] : [])
+    .concat([{ y: E.n_seen, color: mut, dash: [2, 2] }])
+    .concat(gv && mode === "gold" ? [{ y: gv, color: gc, dash: [2, 2] }] : [])
+    .concat(reveal() ? [{ y: T.villagers, color: tru, dash: [4, 3] }] : []), cT);
+  // total bank: rough (one gather rate for every civ); off unless asked, or when there is no gold model
+  if (mode === "bank") {
+    $("vBank").textContent = fmtN(E.bank_est[ai]);
+    $("vBankTrue").textContent = reveal() && T.bank[ai] != null ? `true ${fmtN(T.bank[ai])}` : `rate ${D.params.rate}/vil/s`;
+    let j = ai; while (j > 0 && D.t[ai] - D.t[j - 1] <= 60) j--;
+    const span = D.t[ai] - D.t[j] || 1, d = (E.bank_est[ai] - E.bank_est[j]) / span * 60;
+    const tr = $("vTrend"); tr.className = "pill " + (d > 60 ? "saving" : d < -60 ? "spending" : "flat");
+    tr.textContent = d > 60 ? "saving" : d < -60 ? "spending" : "flat";
+    $("vTrendN").textContent = `${d >= 0 ? "+" : ""}${fmtN(d)}/min implied`;
+    chart($("bankChart"), [{ y: E.bank_est, color: acc }].concat(hasK ? [{ y: E.bank_est_k, color: kil }] : [])
+      .concat(reveal() ? [{ y: T.bank, color: tru, dash: [4, 3] }] : []), cT);
+  }
+  $("chartLegend").innerHTML = (hasGold && mode === "gold" ? `<span><i class="sw" style="background:${gc}"></i>Implied gold (top chart${techOn ? "; solid = minus their techs, dotted = without" : ""}); gold villagers seen (dotted, lower chart)</span>` : "")
+    + `<span><i class="sw" style="background:${acc}"></i>Villagers implied from your sight</span>`
+    + (hasK ? `<span><i class="sw" style="background:${kil}"></i>Same, minus villagers you saw killed</span>` : "")
+    + `<span><i class="sw" style="background:${mut}"></i>Villagers seen (last ${D.params.window}s)</span>`
+    + (reveal() ? `<span><i class="sw" style="background:${tru}"></i>True (review only)</span>` : "");
+  drawFood(o, p);
+  if (mode === "castle") drawCastle(o, p);
+  if (mode === "econ") drawEcon();
+}
+
+// natural food taken so far (berries, deer, boar, sheep: drop in each spot's amount, split by whose food
+// villagers stood at it) and the farm transition
+function natLine(o) {
+  const E = (D.econ || {})[o] || {}, S = E.naturalSeries || [], now = D.ft[fi];
+  let v = 0; for (const x of S) { if (x[0] <= now) v = x[1]; else break; }
+  const n = E.natural; if (!n) return "";
+  const out = (n.taken["own side"] || 0) + (n.taken["enemy side"] || 0) + (n.taken["enemy base"] || 0), all = Object.values(n.taken).reduce((a, b) => a + b, 0);
+  return `<div><span class="k">Natural food taken</span><b>${fmtN(v)}</b> (game: ${fmtN(all)}, ${all ? Math.round(out / all * 100) : 0}% outside base)</div>`;
+}
+// food so far split into natural / farms / other (passive and non-villager food: cattle, pastures, boats)
+function foodLine(o) {
+  const E = (D.econ || {})[o] || {}, now = D.ft[fi];
+  let r = null; for (const x of E.series || []) { if (x[0] <= now) r = x; else break; }
+  let nv = 0; for (const x of E.naturalSeries || []) { if (x[0] <= now) nv = x[1]; else break; }
+  if (!r || r[6] == null) return "";
+  const other = Math.max(0, r[4] - nv - r[6]);
+  return `<div><span class="k">Food from</span><b>${fmtN(nv)}</b> natural · <b>${fmtN(r[6])}</b> farms · <b>${fmtN(other)}</b> other</div>`;
+}
+function farmLine(o) {
+  const F = ((D.econ || {})[o] || {}).farms; if (!F) return "";
+  return `<div><span class="k">Farms</span><b>${F.first == null ? "none" : "first " + fmtT(F.first)}</b>${F.majority != null ? ` · majority of food from ${fmtT(F.majority)}` : ""}</div>`;
+}
+// villager economy of both players (econ.py; review only)
+const SRC_NAME = { farm: "farm", berry: "berries", deer: "deer", boar: "boar", sheep: "sheep", fish: "fish", other: "walking / other" };
+function drawEcon() {
+  const now = D.ft[fi], ps = D.players.map(p => p.idx), E = D.econ || {};
+  const rowAt = (o) => { const S = (E[o] || {}).series || []; let r = null; for (const x of S) { if (x[0] <= now) r = x; else break; } return r; };
+  $("econTiles").innerHTML = ps.map(o => {
+    const r = rowAt(String(o)) || [0, 0, 0, 0, 0, 0], col = pc(o), nm = (D.players.find(x => x.idx === o) || {}).name;
+    return `<div class="etile" style="border-color:${col}"><div class="h" style="color:${col}">P${o} ${esc(nm)}</div>`
+      + `<div><span class="k">Hunt premium</span><b>${fmtN(r[1])}</b> food</div>`
+      + `<div><span class="k">of it map hunt</span><b>${fmtN(r[2])}</b></div>`
+      + `<div><span class="k">Mills out / defence</span><b>${fmtN(r[3])}</b> res</div>`
+      + `<div><span class="k">Net</span><b class="${r[1] - r[3] >= 0 ? "ok" : "bad"}">${r[1] - r[3] >= 0 ? "+" : ""}${fmtN(r[1] - r[3])}</b></div>`
+      + `<div><span class="k">Gathered so far</span><b>${fmtN(r[5])}</b> (food ${fmtN(r[4])})</div>`
+      + natLine(String(o)) + foodLine(String(o)) + farmLine(String(o)) + `</div>`;
+  }).join("");
+  chart($("natChart"), ps.map(o => ({ y: D.t.map(t => { const S = (E[String(o)] || {}).naturalSeries || []; let v = null; for (const x of S) { if (x[0] <= t) v = x[1]; else break; } return v; }), color: pc(o) })), now);
+  $("natLegend").innerHTML = ps.map(o => `<span><i class="sw" style="background:${pc(o)}"></i>P${o} natural food taken (berries, deer, boar, sheep)</span>`).join("");
+  const ts = D.t, ser = (o, k) => ts.map(t => { const S = (E[o] || {}).series || []; let v = null; for (const x of S) { if (x[0] <= t) v = x[k]; else break; } return v; });
+  chart($("econChart"), ps.flatMap(o => [{ y: ser(String(o), 1), color: pc(o) }, { y: ser(String(o), 3), color: pc(o), dash: [4, 3] }]), now);
+  $("econLegend").innerHTML = ps.map(o => `<span><i class="sw" style="background:${pc(o)}"></i>P${o} hunt premium (solid) · mills out + defence (dashed)</span>`).join("");
+  // the 5-minute window around now: villagers, nominal vs measured per resource, food sources
+  const wi = Math.min(3, Math.floor(now / 300)), lab = `${wi * 5}–${wi * 5 + 5} min`;
+  const res = ["food", "wood", "gold", "stone"];
+  let h = `<thead><tr><th>${lab}</th>${ps.map(o => `<th colspan="4" style="color:${pc(o)}">P${o}</th>`).join("")}</tr>`
+    + `<tr><th></th>${ps.map(() => "<th>vils</th><th>nominal/min</th><th>measured/min</th><th>eff.</th>").join("")}</tr></thead><tbody>`;
+  for (const r of res) {
+    h += `<tr><td>${r}</td>` + ps.map(o => { const w = ((E[String(o)] || {}).windows || [])[wi]; const x = w && w.res[r];
+      return x ? `<td>${x.vils}</td><td>${fmtN(x.nominal)}</td><td>${fmtN(x.measured)}</td><td>${x.eff == null ? "–" : Math.round(x.eff * 100) + "%"}</td>` : "<td colspan=4>–</td>"; }).join("") + "</tr>";
+  }
+  h += `<tr><td>food on</td>` + ps.map(o => { const w = ((E[String(o)] || {}).windows || [])[wi];
+    return `<td colspan="4">${w ? Object.entries(w.food).filter(([, v]) => v >= 0.01).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${SRC_NAME[k] || k} ${Math.round(v * 100)}%`).join(", ") + ` · map hunt ${Math.round(w.mapHunt * 100)}%` : "–"}</td>`; }).join("") + "</tr></tbody>";
+  $("econTable").innerHTML = h;
+}
+// which read the panel shows (remembered per browser); Gold needs mine amounts in the recording
+function readMode(hasGold) {
+  const sel = $("readMode");
+  sel.options[0].disabled = !hasGold; sel.options[2].disabled = !(D.castle && Object.keys(D.castle).length);
+  sel.options[3].disabled = !(D.econ && Object.keys(D.econ).length) || !reveal();   // hidden information: review only
+  sel.options[3].title = reveal() ? "" : "Review only: turn on Show true values (or pick Everything)";
+  if (sel.selectedOptions[0].disabled) sel.value = hasGold ? "gold" : "bank";
+  return sel.value;
+}
+
+// Castle timing (castle.py): projected arrival from the implied bank (rate x estimated villagers),
+// the same without the off-path purchases seen (= straight Feudal -> Castle), and what was seen
+function drawCastle(o, p) {
+  const C = (D.castle || {})[`${o}->${p}`];
+  if (!C) { $("cProj").textContent = "–"; $("cItems").innerHTML = ""; return; }
+  const ai = aIdx(), now = D.t[ai], pr = C.proj[ai], rf = C.ref[ai];
+  const reached = C.reached != null && C.reached <= now;
+  const items = C.items.filter(x => x[0] <= now);
+  $("castleNote").textContent = `Income ${D.params.rate}/villager/s · only what you saw counts, so the delay is a lower bound · dashed = implied building`;
+  if (reached) {
+    let j = ai; while (j > 0 && D.t[j] > C.reached - 60) j--;
+    $("cProjK").textContent = "Castle reached";
+    $("cProj").textContent = fmtT(C.reached);
+    $("cProjN").textContent = C.proj[j] != null ? `projected ${fmtT(C.proj[j])} a minute before` : "announced";
+  } else {
+    $("cProjK").textContent = "Castle (projected)";
+    $("cProj").textContent = pr == null ? "–" : fmtT(pr);
+    $("cProjN").textContent = pr == null ? "beyond 30 min at this income" : `landmark builds ${C.build[2]} s`;
+  }
+  const dl = pr != null && rf != null ? pr - rf : null;
+  $("cDelay").textContent = reached ? "–" : dl == null ? "–" : `+${fmtT(dl)}`;
+  $("cDelayN").textContent = reached || rf == null ? "" : `straight path ${fmtT(rf)}`;
+  $("cOff").textContent = fmtN(C.off[ai]);
+  $("cOffN").textContent = `${items.reduce((a, x) => a + x[2], 0)} things · ${items.filter(x => x[5]).length} implied`;
+  // biggest contributors first, merged per type
+  const by = {};
+  for (const [, b, n, cost, sec, imp] of items) {
+    const k = b + (imp ? "i" : ""); by[k] = by[k] || { b, n: 0, sec: 0, imp }; by[k].n += n; by[k].sec += sec || 0;
+  }
+  $("cItems").innerHTML = Object.values(by).sort((a, b) => b.sec - a.sec).map(x => {
+    const nm = D.bpinfo[x.b].name, src = D.icons && D.icons[D.bps[x.b]];
+    const tip = x.imp ? `${nm} (implied: ${x.imp} seen, none of its production buildings seen)` : nm;
+    return `<span class="ci${x.imp ? " imp" : ""}" title="${esc(tip)}">`
+      + (src ? `<img src="${src}" alt="${esc(nm)}">` : `<span class="ic">${esc(nm.split(/\s+/).map(w => w[0]).join("").slice(0, 3))}</span>`)
+      + `${x.n > 1 ? "×" + x.n + " " : ""}+${x.sec}s</span>`;
+  }).join("");
+}
+
+// ---- fights: own losses always known; enemy losses only where the viewer saw them
+let fightSel = null;
+function fightView() {
+  const pv = povVal(), all = pv === "all", o = Number(pv);
+  const seen = d => all || d.owner === o || (d.vis & (1 << (o - 1)));
+  return (D.fights || []).map(f => {
+    const ds = f.deaths.filter(seen);
+    const per = {};
+    for (const p of D.players) per[p.idx] = { n: 0, v: 0, vil: 0, unknown: 0, by: {} };
+    for (const d of ds) {
+      const q = per[d.owner]; q.n++; q.v += d.cost || 0; if (d.kind === "w") q.vil++;
+      if (!d.known) q.unknown++;
+      q.by[d.name] = (q.by[d.name] || 0) + 1;
+    }
+    const tot = ds.length, val = Object.values(per).reduce((a, q) => a + q.v, 0);
+    return { f, per, tot, skirmish: tot < 3 && val < 400 };
+  }).filter(x => x.tot > 0);
+}
+function buildFights() {
+  if (!D) return;
+  const rows = fightView().filter(x => $("skirm").checked || !x.skirmish);
+  const [a, b] = D.players.map(p => p.idx), all = povVal() === "all";
+  $("thP1").textContent = `P${a} lost`; $("thP2").textContent = `P${b} lost`;
+  $("thExtra").textContent = all ? "Army before → after (value)" : "Seen";
+  $("fightNote").textContent = all ? "everything" : `what P${povVal()} saw`;
+  const lostCell = q => q.n ? `<span class="num">${q.n} · ${fmtN(q.v)}${q.unknown ? "+?" : ""}</span>`
+    + `${q.vil ? ` <span class="tag2">${q.vil} vil</span>` : ""}<div class="units">${Object.entries(q.by).map(([k, n]) => n + "× " + esc(k)).join(", ")}</div>`
+    : `<span class="units">none</span>`;
+  $("fightRows").innerHTML = rows.map(x => {
+    const f = x.f, pa = x.per[a], pb = x.per[b];
+    const trade = pa.v + pb.v ? (pb.v ? (pa.v / pb.v) : Infinity) : null;
+    const tradeTxt = trade === null ? "–" : trade === Infinity ? `P${b} lost 0` : trade < 1 ? `P${a} +${fmtN(pb.v - pa.v)}` : trade > 1 ? `P${b} +${fmtN(pa.v - pb.v)}` : "even";
+    const extra = all ? `<span class="num">P${a} ${fmtN(f.army_before[a])}→${fmtN(f.army_after[a])}<br>P${b} ${fmtN(f.army_before[b])}→${fmtN(f.army_after[b])}</span>`
+      : `<span class="tag2">${x.tot} of ${f.deaths.length} deaths</span>`;
+    return `<tr data-n="${f.n}" class="${fightSel === f.n ? "now" : ""}"><td class="num">${f.n}</td><td class="num">${fmtT(f.start)}</td>`
+      + `<td class="num">${fmtN(f.end - f.start)} s</td><td>${lostCell(pa)}</td><td>${lostCell(pb)}</td>`
+      + `<td class="num">${tradeTxt}</td><td>${extra}</td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="empty">No fights${all ? "" : " this player saw"}${$("skirm").checked ? "" : " (skirmishes hidden)"}.</td></tr>`;
+}
+function drawFightMarks(g, px, pz) {
+  const t = D.ft[fi], vis = new Set(fightView().map(x => x.f.n));
+  for (const f of D.fights || []) {
+    if (!vis.has(f.n) || t < f.start - 5 || t > f.end + 5) continue;
+    const X = px(f.x, f.z), Y = pz(f.x, f.z), R = f.r / V().s * $("map").getBoundingClientRect().width;
+    g.setLineDash([5, 4]); g.lineWidth = fightSel === f.n ? 2.5 : 1.5; g.strokeStyle = css("--accent");
+    g.beginPath(); g.arc(X, Y, Math.max(R, 10), 0, 7); g.stroke(); g.setLineDash([]);
+    g.font = "600 12px " + css("--f-mono"); g.textAlign = "center"; g.fillStyle = css("--accent");
+    g.fillText("⚔" + f.n, X, Y - Math.max(R, 10) - 4);
+  }
+}
+
+function drawCounter() {
+  const o = observer(), p = target(), rows = (D.counter || {})[`${o}->${p}`];
+  $("ctrNote").textContent = `P${o}'s army`;
+  if (!rows || !rows.length) { $("ctr").innerHTML = `<span class="note" style="grid-column:1/-1">No army data in this file.</span>`; return; }
+  const t = D.ft[fi]; let r = null;
+  for (const x of rows) { if (x.t <= t) r = x; else break; }
+  const list = m => Object.entries(m || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n}× ${esc(k)}`).join(", ") || "none";
+  if (!r) { $("ctr").innerHTML = ""; return; }
+  if (!r.ideal) {
+    $("ctr").innerHTML = `<span class="note" style="grid-column:1/-1">${r.budget ? "No enemy army seen in the last 60 s." : "No army yet."}</span>`;
+    return;
+  }
+  const eff = r.eff == null ? "–" : Math.round(r.eff * 100) + "%";
+  const vs = r.vs == null ? "" : r.vs >= 1 ? `wins (strength ${r.vs.toFixed(2)}×)` : `loses (strength ${r.vs.toFixed(2)}×)`;
+  $("ctr").innerHTML = `<span class="k">Enemy seen</span><span>${list(r.enemy)}</span>`
+    + `<span class="k">Yours · ${fmtN(r.budget)}</span><span>${list(r.mine)}${vs ? ` <span class="note">· ${vs} head-on</span>` : ""}</span>`
+    + `<span class="k">Ideal · same cost</span><span>${list(r.ideal)}</span>`
+    + `<span class="k">Effectiveness</span><span class="big">${eff} <span class="note">of the ideal mix (no range, upgrades or micro in the model)</span></span>`;
+}
+
+// ---- basics checks (review only: Show true values / Everything; owner 2026-10-27)
+const STYLE_NM = { turbo: "turbo", spending: "spending", trickle: "trickle", saving: "saving", floating: "floating", "floating (soft)": "floating (soft)", banking: "banking" };
+function buildBasicsMarks() {
+  const box = $("basicsMarks"); box.innerHTML = "";
+  if (!D.basics) return;
+  const t0 = D.ft[0], t1 = D.ft[D.ft.length - 1], X = t => ((t - t0) / (t1 - t0 || 1) * 100) + "%";
+  const W = (a, b) => Math.max(0.25, (b - a) / (t1 - t0 || 1) * 100) + "%";
+  D.players.forEach((pl, k) => {
+    const B = D.basics.p[String(pl.idx)]; if (!B) return;
+    const lane = document.createElement("div"); lane.className = "blane"; lane.style.top = (k * 17) + "px";
+    lane.innerHTML = `<span class="lab" style="color:${pc(pl.idx)}">P${pl.idx}</span>`;
+    const band = (a, b, col, tip) => `<span class="bband" data-t="${a}" style="left:${X(a)};width:${W(a, b)};background:${col}" title="${esc(tip)}"></span>`;
+    const ev = (t, ch, bad, tip) => `<button type="button" class="bev${bad ? " bad" : ""}" data-t="${t}" style="left:${X(t)};${bad ? "" : `color:${pc(pl.idx)}`}" title="${esc(tip)}">${ch}</button>`;
+    let h = "";
+    for (const [a, b, g, r, pk] of B.floats) h += band(a, b, g === "hard" ? "var(--bad, #d23c2a)" : "var(--warn)", `P${pl.idx} floating ${r} (${g}) ${fmtT(a)}–${fmtT(b)}, peak ${fmtN(pk)}`);
+    for (const [a, b, pk, nm] of B.overq) h += band(a, b, "#8a6fc4", `P${pl.idx} overqueue: ${nm} ${fmtT(a)}–${fmtT(b)}, ${pk} queued`);
+    for (const [a, b, av] of B.idleArmy) h += band(a, b, "var(--muted)", `P${pl.idx} army idle at home while out-gathered ${fmtT(a)}–${fmtT(b)} (army ${fmtN(av)})`);
+    for (const [a, b, kind, nk, kv, lv, fs, net, flag] of B.raids)
+      h += ev(a, kind === "raid" ? "▸" : "⇨", flag, `P${pl.idx} ${kind} ${fmtT(a)}–${fmtT(b)}: ${nk} villagers killed (${fmtN(kv)}), ${fs} s forced idle, lost ${fmtN(lv)}, net ${net >= 0 ? "+" : ""}${fmtN(net)}${flag ? " · units for villagers" : ""}`);
+    for (const [a, b, op, rg, main, byRes, near] of B.gaps || [])
+      h += ev(a, "↘", true, `P${pl.idx} starts falling behind in gathering at ${fmtT(a)} (to ${fmtT(b)}): gap opened ${fmtN(op)}, ${fmtN(rg)}/min; mostly ${main}; `
+        + Object.entries(byRes).filter(x => x[1]).map(([r, v]) => `${r} ${v > 0 ? "+" : ""}${fmtN(v)}/min`).join(", ") + (near ? `; ${near}` : ""));
+    for (const [a, b, lm, lt, flag] of B.dives)
+      h += ev(a, "✕", flag, `P${pl.idx} dive on their TC ${fmtT(a)}–${fmtT(b)}: lost ${fmtN(lm)} vs ${fmtN(lt)}${flag ? " · dived while ahead, lead shrank" : ""}`);
+    lane.innerHTML += h; box.appendChild(lane);
+  });
+  // trades: on the lane of the side that lost less
+  for (const [a, b, lost, mins] of D.basics.trades || []) {
+    const ids = Object.keys(lost); if (ids.length < 2) continue;
+    const win = Number(lost[ids[0]] <= lost[ids[1]] ? ids[0] : ids[1]), k = D.players.findIndex(p => p.idx === win);
+    const lane = box.children[k]; if (!lane) continue;
+    lane.insertAdjacentHTML("beforeend", `<button type="button" class="bev" data-t="${a}" style="left:${((a - t0) / (t1 - t0 || 1) * 100)}%;color:${pc(win)}" title="${esc(`Trade ${fmtT(a)}–${fmtT(b)}: lost ${ids.map(i => `P${i} ${fmtN(lost[i])}`).join(", ")}`)}">◆</button>`);
+  }
+}
+// ---- buffs (review only: Show true values / Everything; owner 2026-11-12): analyzer/auras.py + analyzer/statdiff.py
+const BFX = fx => {
+  const p = (fx || []).map(x => x[0] || "");
+  if (p.some(x => /Attack|attackSpeed/i.test(x))) return "atk";
+  if (p.some(x => /Armor/i.test(x))) return "arm";
+  if (p.some(x => /moveSpeed/i.test(x))) return "spd";
+  if (p.some(x => /heal/i.test(x))) return "heal";
+  return "oth";
+};
+const fxText = fx => (fx || []).filter(x => x[0] && x[2] != null).map(([pr, ef, v]) => `${pr} ${ef === "multiply" ? "×" + v : (v > 0 ? "+" : "") + v}`).join(", ");
+const shortBp = b => String(b || "").replace(/^(unit|building)_/, "").replace(/_\d?_?[a-z]{2,4}(_ha_\w+)?$/, "").replace(/_/g, " ");
+function buildBuffMarks() {
+  const box = $("buffMarks"); box.innerHTML = "";
+  const B = D.buffs; if (!B) return;
+  const t0 = D.ft[0], t1 = D.ft[D.ft.length - 1], X = t => ((t - t0) / (t1 - t0 || 1) * 100) + "%";
+  const W = (a, b) => Math.max(0.25, (b - a) / (t1 - t0 || 1) * 100) + "%";
+  D.players.forEach((pl, k) => {
+    const lane = document.createElement("div"); lane.className = "blane"; lane.style.top = (k * 17) + "px";
+    lane.innerHTML = `<span class="lab" style="color:${pc(pl.idx)}">P${pl.idx}</span>`;
+    let h = "";
+    Object.entries(B.p[String(pl.idx)] || {}).forEach(([ab, L], j) => {
+      const nm = B.names[ab] || ab, cls = BFX(B.fx[ab]), fx = fxText(B.fx[ab]);
+      for (const [a, b, n] of L)
+        h += `<span class="fband bfx-${cls}" data-t="${a}" style="left:${X(a)};width:${W(a, b)};bottom:${(j % 3) * 4}px" title="${esc(`P${pl.idx} ${nm} ${fmtT(a)}–${fmtT(b)}: up to ${n} unit${n === 1 ? "" : "s"}${fx ? " · " + fx : ""}`)}"></span>`;
+    });
+    // unexplained damage: one "?" per 10 s cluster of the attacker's player
+    const F = (B.find || []).filter(r => r[1] === pl.idx);
+    for (let i = 0; i < F.length;) {
+      let j = i; while (j + 1 < F.length && F[j + 1][0] - F[i][0] <= 10) j++;
+      const grp = F.slice(i, j + 1), pairs = {};
+      for (const r of grp) { const key = `${shortBp(r[2])} → ${shortBp(r[3])}: ${r[4]} (expected ${r[5]})`; pairs[key] = (pairs[key] || 0) + 1; }
+      h += `<button type="button" class="bev bad" data-t="${grp[0][0]}" style="left:${X(grp[0][0])};bottom:12px" title="${esc(`P${pl.idx} damage the data does not explain, ${fmtT(grp[0][0])}–${fmtT(grp[grp.length - 1][0])}:\n` + Object.entries(pairs).map(([k_, n]) => `${n}× ${k_}`).join("\n"))}">?</button>`;
+      i = j + 1;
+    }
+    lane.innerHTML += h; box.appendChild(lane);
+  });
+}
+function drawBuffs() {
+  const on = !!D.buffs && reveal();
+  $("buffBox").hidden = !on; $("buffMarks").hidden = !on;
+  if (!on) return;
+  const B = D.buffs, t = D.ft[fi];
+  const cols = D.players.map(pl => {
+    const now = [];
+    for (const [ab, L] of Object.entries(B.p[String(pl.idx)] || {})) {
+      const x = L.find(r => r[0] <= t && t <= r[1] + 1);
+      if (x) now.push(`<span class="chip bfx-${BFX(B.fx[ab])}"></span>${esc(B.names[ab] || ab)} <span class="note">${x[2]} unit${x[2] === 1 ? "" : "s"} · until ${fmtT(x[1])}</span>`);
+    }
+    const near = (B.find || []).filter(r => r[1] === pl.idx && Math.abs(r[0] - t) <= 15).length;
+    return { now: now.join("<br>") || '<span class="note">none</span>', near };
+  });
+  const tot = (B.find || []).length, expl = (B.explained || []).reduce((a, r) => a + r[4], 0);
+  const dot = (B.dot || []).map(d => `${esc(d[0])}: ${d[1]} ticks / ${fmtN(d[2])} dmg`).join("; ");
+  $("buffNote").textContent = `${expl} hits explained by buffs · ${tot} unexplained`;
+  $("buffTab").innerHTML = `<span class="k"></span>` + D.players.map(pl => `<span class="h" style="color:${pc(pl.idx)}">P${pl.idx} ${esc(pl.name)}</span>`).join("")
+    + `<span class="k">Buffed now</span>` + cols.map(c => `<span>${c.now}</span>`).join("")
+    + `<span class="k">Unexplained ±15 s</span>` + cols.map(c => `<span class="${c.near ? "bad" : ""}">${c.near} hit${c.near === 1 ? "" : "s"} dealt</span>`).join("")
+    + (dot ? `<span class="k">Damage over time</span><span style="grid-column:2/-1">${dot} <span class="note">(credited to the unit that applied it)</span></span>` : "");
+}
+function drawBasics() {
+  const on = !!D.basics && reveal();
+  $("basicsBox").hidden = !on; $("basicsMarks").hidden = !on;
+  if (!on) return;
+  const t = D.ft[fi], at = (arr, i0 = 0) => { let r = null; for (const x of arr) { if (x[i0] <= t) r = x; else break; } return r; };
+  const inside = (arr) => arr.find(x => x[0] <= t && t <= x[1]);
+  const cols = D.players.map(pl => {
+    const B = D.basics.p[String(pl.idx)] || {}, S = B.series || [];
+    const s = at(S), s60 = at(S.filter(x => x[0] <= t - 60));
+    const inc = s && s60 && s[0] > s60[0] ? (s[1] - s60[1]) / (s[0] - s60[0]) * 60 : null;
+    const st = inside(B.style || []), fl = (B.floats || []).filter(x => x[0] <= t && t <= x[1]), oq = (B.overq || []).filter(x => x[0] <= t && t <= x[1]);
+    const sv = inside(B.saves || []), c = at(B.catch || []), fd = at(B.food || []), ia = inside(B.idleArmy || []);
+    const gp = (B.gaps || []).find(x => x[0] <= t && t <= x[1]);
+    const rd = (B.raids || []).find(x => x[0] <= t && t <= x[1] + 5), dv = (B.dives || []).find(x => x[0] <= t && t <= x[1] + 5);
+    return {
+      gathered: s ? fmtN(s[1]) : "–", bank: s ? fmtN(s[2]) : "–", army: s ? fmtN(s[3]) : "–", inc: inc == null ? "–" : fmtN(inc) + "/min",
+      vil: s ? `${s[4]}${s[5] ? ` <span class="bad">(${s[5]} idle)</span>` : ""}` : "–",
+      style: st ? (st[2].startsWith("floating") ? `<span class="bad">${STYLE_NM[st[2]] || st[2]}</span>` : STYLE_NM[st[2]] || st[2]) : "–",
+      float: fl.length ? `<span class="bad">${fl.map(x => `${x[3]} (${x[2]})`).join(", ")}</span>` : "–",
+      overq: oq.length ? `<span class="bad">${oq.map(x => `${esc(x[3])} ×${x[2]}`).join(", ")}</span>` : "–",
+      save: sv ? `${esc(sv[2])}${sv[3] != null && t >= sv[3] ? ` <span class="bad">· affordable since ${fmtT(sv[3])}</span>` : ""}` : "–",
+      catch: c && c[1] != null ? `${c[1]} min` : "–",
+      food: fd && fd[1] != null ? `${fd[1]} min${fd[2] ? ` <span class="bad">· farm switch at risk</span>` : ""}` : "–",
+      idle: ia ? `<span class="bad">${fmtT(ia[0])}–${fmtT(ia[1])}</span>` : "–",
+      gap: gp ? `<span class="bad">behind since ${fmtT(gp[0])} · ${gp[4]}</span>` : "–",
+      act: [rd ? `${rd[2]}${rd[8] ? ' <span class="bad">units for villagers</span>' : ""}` : "", dv ? `dive${dv[4] ? ' <span class="bad">lead shrank</span>' : ""}` : ""].filter(Boolean).join("; ") || "–",
+    };
+  });
+  const rows = [["gathered", "Gathered"], ["inc", "Income (60 s)"], ["bank", "Bank"], ["army", "Army value"], ["vil", "Villagers"],
+    ["style", "Spending (30 s)"], ["float", "Floating"], ["overq", "Overqueued"], ["save", "Saving for"],
+    ["gap", "Falling behind in gathering"], ["catch", "Other side needs to match army"], ["food", "Safe food left"], ["idle", "Army idle at home"], ["act", "Raid / dive now"]];
+  $("basicsTab").innerHTML = `<span></span>` + D.players.map(p => `<span class="h" style="color:${pc(p.idx)}">P${p.idx} ${esc(p.name)}</span>`).join("")
+    + rows.map(([k, lab]) => `<span class="k">${lab}</span>` + cols.map(c => `<span>${c[k]}</span>`).join("")).join("");
+  $("basicsNote").textContent = fmtT(t);
+}
+
+// ---- review graphs (owner 2026-11-09: basics and spikes graphs in the viewer, picked from a menu, with a line at the
+// replay's time; click the graph to jump). Review only like the basics panel: Show true values or Everything.
+const REV_OPTS = [
+  ["sp_army", "Army value + gap (spikes)", "spikes"], ["sp_income", "Income per minute (spikes)", "spikes"],
+  ["sp_output", "Army produced per minute (spikes)", "spikes"], ["sp_vil", "Villagers (spikes)", "spikes"],
+  ["b_gathered", "Gathered, total (basics)", "basics"], ["b_bank", "Bank (basics)", "basics"],
+  ["b_army", "Army value (basics)", "basics"], ["b_spent", "Spent, total (basics)", "basics"],
+  ["b_idle", "Idle villagers (basics)", "basics"]];
+let revGeo = null;
+function buildReview() {
+  const opts = REV_OPTS.filter(o => D[o[2]] && (!D.lite || o[0] === "sp_army" || o[0] === "sp_income")), sel = $("revSel"), keep = sel.value;
+  sel.innerHTML = opts.map(o => `<option value="${o[0]}">${esc(D.lite ? o[1].replace(" (spikes)", o[0] === "sp_income" ? " + gap" : "") : o[1])}</option>`).join("");
+  if (opts.some(o => o[0] === keep)) sel.value = keep;
+  const R = D.reports || {}, rs = $("repSel");
+  rs.innerHTML = Object.keys(R).map(k => `<option value="${k}">${esc(k)}</option>`).join("");
+  $("revRep").hidden = !Object.keys(R).length || !!D.lite; $("revSpikes").hidden = !!D.lite; $("repFrame").removeAttribute("srcdoc"); $("repFrame").dataset.k = "";
+  if ($("revRep").open) loadReport();
+  const S = D.spikes, box = $("revSpikes");
+  box.innerHTML = !S ? "" : (S.spikes || []).map((s, i) => {
+    const pl = D.players.find(p => p.idx === s.p) || { name: "?" }, ar = (x, u = "") => x[0] == null && x[1] == null ? "–"
+      : `${fmtN(x[0])} → ${fmtN(x[1])}${u}${x[0] && x[1] != null ? ` (${x[1] >= x[0] ? "+" : ""}${Math.round((x[1] - x[0]) / x[0] * 100)}%)` : ""}`;
+    const head = s.led ? `army lead +${fmtN(s.peak_gain)} (peak ${fmtT(s.peak_t)}), lasted ${fmtN(s.dur)} s · <span class="why">${esc(s.why)}</span>`
+      : `<span class="why">no army lead within ${Math.round((S.params || {}).LOOK / 60) || 3} min</span>`;
+    const ch = [s.t1 > s.t0 ? `started ${fmtT(s.t0)}, done ${fmtT(s.t1)}${s.build_idle ? `; idle villagers meanwhile ≈ ${fmtN(s.build_idle)}` : ""}` : "",
+      `eco (true): income ${ar(s.income, "/min")}, villagers ${ar(s.vil)}, per villager ${ar(s.per_vil, "/min")}`,
+      `production (true): army output ${ar(s.output, "/min")}`,
+      `armies at the spike (true): ${fmtN(s.army_at)} vs ${fmtN(s.their_army_at)}; gap before ${s.base_gap >= 0 ? "+" : ""}${fmtN(s.base_gap)}`,
+      `visibility: ${esc(s.seen)}`]
+      .concat((s.fights || []).map(f => `<span class="${f.lost > f.killed ? "lost" : f.killed > f.lost ? "won" : ""}">fight ${f.n} at ${fmtT(f.t)}: lost ${fmtN(f.lost)}, killed ${fmtN(f.killed)}</span>`))
+      .filter(Boolean);
+    return `<div class="spk" data-i="${i}" style="border-left-color:${pc(s.p)}"><button type="button" class="seek" data-t="${s.t1}">${fmtT(s.t1)}</button>`
+      + `<b style="color:${pc(s.p)}">P${s.p}</b> ${esc(s.name)}: ${head}<details><summary>details</summary><ul>${ch.map(c => `<li>${c}</li>`).join("")}</ul></details></div>`;
+  }).join("");
+}
+function revData(key) {
+  const out = { lines: [], marks: [] };
+  if (key.startsWith("sp_") && D.spikes) {
+    const f = { sp_army: "army", sp_income: "income", sp_output: "output", sp_vil: "vil" }[key];
+    D.players.forEach(p => { const S = D.spikes.series[String(p.idx)] || []; out.lines.push({ name: `P${p.idx} ${p.name}`, color: pc(p.idx), t: S.map(x => x.t), y: S.map(x => x[f]) }); });
+    if ((key === "sp_army" || key === "sp_income") && D.players.length === 2) {
+      const [a, b] = D.players.map(p => D.spikes.series[String(p.idx)] || []);
+      out.lines.push({ name: `gap (P${D.players[0].idx} − P${D.players[1].idx})`, color: css("--muted"), dash: [5, 4], t: a.map(x => x.t),
+        y: a.map((x, i) => b[i] && x[f] != null && b[i][f] != null ? x[f] - b[i][f] : null) });
+    }
+    for (const s of D.spikes.spikes || []) out.marks.push({ t: s.t1, ch: s.kind === "age" ? "▲" : s.kind === "tech" ? "◆" : "●", col: pc(s.p) });
+    for (const f of D.spikes.fights || []) out.marks.push({ t: f.start, ch: "F", col: css("--muted"), low: true });
+  } else if (key.startsWith("b_") && D.basics) {
+    const c = { b_gathered: 1, b_bank: 2, b_army: 3, b_spent: 6, b_idle: 5 }[key];
+    D.players.forEach(p => { const S = (D.basics.p[String(p.idx)] || {}).series || []; out.lines.push({ name: `P${p.idx} ${p.name}`, color: pc(p.idx), t: S.map(x => x[0]), y: S.map(x => x[c]) }); });
+    for (const p of D.players) for (const [t, a] of (D.ageups || {})[String(p.idx)] || []) out.marks.push({ t, ch: "▲", col: pc(p.idx) });
+  }
+  return out;
+}
+function drawReview() {
+  const on = reveal() && !!(D.spikes || D.basics || D.reports);
+  $("revBox").hidden = !on; if (!on) return;
+  const t = D.ft[fi], key = $("revSel").value, R = revData(key);
+  const [g, W, H] = sizeCanvas($("revChart")); g.clearRect(0, 0, W, H);
+  const L = 52, Rm = 8, T = 16, Bm = 18, t0 = D.ft[0], t1 = D.ft[D.ft.length - 1];
+  let lo = 0, hi = 1;
+  for (const s of R.lines) for (const v of s.y) if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  const X = x => L + (x - t0) / (t1 - t0 || 1) * (W - L - Rm), Y = y => T + (1 - (y - lo) / (hi - lo || 1)) * (H - T - Bm);
+  revGeo = { L, Rm, W, t0, t1 };
+  g.font = "11px " + css("--f-mono"); g.fillStyle = css("--muted"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const v of niceTicks(lo, hi, 4)) { g.beginPath(); g.moveTo(L, Y(v)); g.lineTo(W - Rm, Y(v)); g.stroke(); g.fillText(fmtN(v), L - 5, Y(v)); }
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const v of niceTicks(t0, t1, 8)) g.fillText(fmtT(v), X(v), H - Bm + 4);
+  if (lo < 0) { g.strokeStyle = css("--muted"); g.beginPath(); g.moveTo(L, Y(0)); g.lineTo(W - Rm, Y(0)); g.stroke(); }
+  for (const m of R.marks) {
+    g.strokeStyle = m.col; g.globalAlpha = .35; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(X(m.t), T); g.lineTo(X(m.t), H - Bm); g.stroke();
+    g.setLineDash([]); g.globalAlpha = 1; g.fillStyle = m.col; g.textBaseline = "top"; g.fillText(m.ch, X(m.t), m.low ? H - Bm - 12 : 2);
+  }
+  for (const s of R.lines) drawLine(g, s.t, s.y, X, Y, s.color, s.dash);
+  g.strokeStyle = css("--accent"); g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(t), T); g.lineTo(X(t), H - Bm); g.stroke(); g.lineWidth = 1;
+  const vals = R.lines.map(s => { let j = -1; for (let i = 0; i < s.t.length && s.t[i] <= t; i++) j = i; return j < 0 ? null : s.y[j]; });
+  R.lines.forEach((s, k) => { if (vals[k] != null) { g.fillStyle = s.color; g.beginPath(); g.arc(X(t), Y(vals[k]), 3.2, 0, 7); g.fill(); } });
+  $("revLegend").innerHTML = R.lines.map((s, k) => `<span><i class="sw" style="background:${s.color}"></i>${esc(s.name)}: ${vals[k] == null ? "–" : fmtN(vals[k])}</span>`).join("")
+    + (R.marks.length ? `<span>▲ age-up ◆ unique tech ● unique unit F fight</span>` : "");
+  $("revNote").textContent = fmtT(t);
+  // spikes standing at this moment
+  const S = D.spikes;
+  if (S) for (const el of $("revSpikes").children) { const s = S.spikes[Number(el.dataset.i)]; el.classList.toggle("on", !!s && s.led && s.t1 <= t && t <= s.end); }
+}
+function loadReport() {
+  const R = D.reports || {}, k = $("repSel").value, f = $("repFrame");
+  if (!k || f.dataset.k === k) return;
+  f.dataset.k = k; f.srcdoc = R[k];
+}
+// times in a report (m:ss) become links that move the replay there
+$("repFrame").addEventListener("load", () => {
+  const doc = $("repFrame").contentDocument; if (!doc || !doc.body) return;
+  const st = doc.createElement("style"); st.textContent = "a.seek{color:inherit;text-decoration:underline dotted;cursor:pointer}"; doc.head.appendChild(st);
+  const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest("svg,style,script,a") ? 2 : 1 });
+  const nodes = []; while (w.nextNode()) if (/\b\d{1,3}:\d\d\b/.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  for (const n of nodes) {
+    const span = doc.createElement("span");
+    span.innerHTML = n.nodeValue.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c])
+      .replace(/\b(\d{1,3}):(\d\d)\b/g, (m, a, b) => `<a class="seek" data-t="${Number(a) * 60 + Number(b)}">${m}</a>`);
+    n.replaceWith(span);
+  }
+  doc.addEventListener("click", e => { const a = e.target.closest("a.seek"); if (a) seekT(Number(a.dataset.t)); });
+});
+$("revSel").onchange = drawReview;
+$("repSel").onchange = loadReport;
+$("revRep").addEventListener("toggle", () => { if ($("revRep").open) loadReport(); });
+$("revSpikes").onclick = e => { const b = e.target.closest("button.seek"); if (b) seekT(Number(b.dataset.t)); };
+(() => { let drag = false; const c = $("revChart");
+  const go = e => { if (!revGeo) return; const r = c.getBoundingClientRect(), x = e.clientX - r.left;
+    seekT(revGeo.t0 + Math.max(0, Math.min(1, (x - revGeo.L) / (revGeo.W - revGeo.L - revGeo.Rm))) * (revGeo.t1 - revGeo.t0)); };
+  c.addEventListener("mousedown", e => { drag = true; go(e); });
+  window.addEventListener("mousemove", e => { if (drag) go(e); });
+  window.addEventListener("mouseup", () => { drag = false; });
+})();
+
+// age-up completions on the timeline (every player is notified of these)
+function buildAgeMarks() {
+  const box = $("ageMarks"); box.innerHTML = "";
+  if (!D.ageups) return;
+  const t0 = D.ft[0], t1 = D.ft[D.ft.length - 1], roman = ["", "I", "II", "III", "IV"], nm = ["", "Dark", "Feudal", "Castle", "Imperial"];
+  D.players.forEach((p, k) => {
+    for (const [t, a] of D.ageups[String(p.idx)] || []) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "mark" + (k ? " p2" : "");
+      b.style.left = ((t - t0) / (t1 - t0 || 1) * 100) + "%"; b.style.background = pc(p.idx);
+      b.textContent = roman[a] || a; b.title = `P${p.idx} ${p.name}: ${nm[a] || "age " + a} at ${fmtT(t)}`;
+      b.onclick = () => seekT(t);
+      box.appendChild(b);
+    }
+  });
+}
+
+function buildLog() {
+  const o = observer(), p = target(), evs = D.events[`${o}->${p}`] || [];
+  $("log").innerHTML = evs.map((ev, i) =>
+    `<div data-t="${ev.t}" data-i="${i}"><span class="tm">${fmtT(ev.t)}</span>`
+    + `<span>${[ev.saw.length ? "Saw " + ev.saw.map(s => `${s.n}× ${esc(s.name)}${s.cost ? ` (${fmtN(s.cost)})` : ""}`).join(", ") : "",
+        ...(ev.inferred || []).map(i => `<span class="inf" title="${esc(i.why)}">Inferred ${esc(i.name)} (${fmtN(i.cost)})</span>`)]
+        .filter(Boolean).join("; ")}</span>`
+    + `<span class="bk">→ ${fmtN(ev.bank_est_after)}</span></div>`).join("")
+    || `<div><span></span><span>No enemy units or buildings seen yet in this replay.</span><span></span></div>`;
+  $("logCount").textContent = evs.length ? `${evs.length} sightings` : "";
+}
+function markLog() {
+  const t = D.ft[fi]; let cur = null;
+  for (const row of $("log").children) {
+    if (row.dataset.t === undefined) continue;
+    const rt = Number(row.dataset.t); row.classList.toggle("future", rt > t); row.classList.remove("now");
+    if (rt <= t) cur = row;
+  }
+  if (cur) { cur.classList.add("now"); const L = $("log");
+    if (cur.offsetTop < L.scrollTop || cur.offsetTop > L.scrollTop + L.clientHeight - 30) L.scrollTop = cur.offsetTop - L.clientHeight / 2; }
+}
+
+function legend() {
+  $("legend").innerHTML = D.players.map(p => `<span><i class="sw" style="background:${pc(p.idx)}"></i>P${p.idx}</span>`).join("")
+    + `<span>buildings: ▣ Town Center · ◆ landmark · ⊠ military · ▲ defense · ● eco drop-off · ⊞ religious · ⊡ tech · ▪ house · □ farm</span><span>• villager</span><span>○ fishing boat / other gatherer</span><span>▲ army, size ∝ resource value (label: units · value)</span>`
+    + `<span>unit fill = age tier${[1, 2, 3, 4].map(a => ` <i class="sw" style="background:${ageFill(a)}"></i>${["Dark", "Feudal", "Castle", "Imperial"][a - 1]}`).join("")}; army fill = tier with most value</span>`
+    + (povVal() !== "all" ? `<span style="color:${css("--ghost")}">⬚ dashed square: enemy building where you last saw it</span>` : "")
+    + `<span style="color:${css("--accent")}">◯ dashed circle ⚔n: fight n in progress (see Fights)</span>`
+    + (D.camera && $("camOn").checked ? `<span>⬚ dotted outline + line: ground on the player's screen (flat ground, 16:9 assumed)${Number($("camTrail").value) ? ` and its last ${$("camTrail").value} s` : ""}${povVal() !== "all" ? ", own camera only" : ""}</span>` : "")
+    + (D.food && $("foodOn").checked && povVal() !== "all" ? `<span>◯ ring on food: safe for the opponent (their colour) or not (your colour); stronger = more certain. Score = TC distances (TC midline toggle: - - - equal distance) + army auras (⋯ circles, fixed radius) + who arrives first; TC? = their TC assumed (mirror of yours); berries? = their TC berries assumed; now? = the scouted group they are assumed on once the active food is gone; ⇢ next = where they go after that; ! = their villagers seen on food that is unsafe for them (raid window)</span>` : "")
+    + (D.orders && $("ordOn").checked ? `<span>— line: unit order of the last ${ORDER_S} s (○ move/gather, × attack; dashed = shift-queued)${povVal() !== "all" ? ", own orders only" : ""}</span>` : "")
+    + (Number($("heat").value) ? `<span>shaded squares: where each army spent time (Army heat)</span>` : "")
+    + (D.nodes && D.nodes.length && $("nodesOn").checked
+      ? [["--n-gold", "◆", "gold"], ["--n-stone", "◆", "stone"], ["--n-berry", "●", "berries"], ["--n-deer", "●", "deer"], ["--n-animal", "●", "animals"],
+         ["--n-tree", "·", "forest"], ["--n-stealth", "·", "stealth forest"], ["--n-tree", "●", "straggler"]]
+        .map(([tok, ch, label]) => `<span><span style="color:${css(tok)}">${ch}</span>${label}</span>`).join("") : "")
+    + (D.blocked && $("terrOn").checked ? `<span><i class="sw" style="background:${css("--t-cliff")}"></i>cliff</span><span><i class="sw" style="background:${css("--t-water")}"></i>deep water (land units can't stand)</span>` : "")
+    + (povVal() !== "all" && $("vision").checked ? `<span><i class="sw" style="background:${css("--lit")};outline:1px solid ${pc(Number(povVal()))}"></i>sight (from unit sight radii, approximate)</span>` : "");
+}
+
+function render() {
+  if (!D) return;
+  $("reveal").disabled = povVal() === "all";
+  $("clock").textContent = fmtT(D.ft[fi]);
+  $("scrub").value = fi;
+  if (OHUD) OHUD.update(D.ft[fi], { bar: $("ohBar").checked, stats: $("ohStats").checked, recap: $("ohRecap").checked });
+  drawMap(); if (!D.lite) { drawRead(); drawCounter(); drawBasics(); drawBuffs(); } drawReview(); markLog(); legend();
+}
+
+function seekT(t) { let i = D.ft.findIndex(x => x >= t); fi = i < 0 ? D.ft.length - 1 : i; tGame = D.ft[fi]; render(); }
+function tick(ts) {
+  if (!playing) return;
+  const dt = lastTs ? (ts - lastTs) / 1000 : 0; lastTs = ts;
+  tGame += dt * Number($("speed").value);
+  let i = fi; while (i < D.ft.length - 1 && D.ft[i + 1] <= tGame) i++;
+  if (i !== fi) { fi = i; render(); }
+  if (fi >= D.ft.length - 1) { playing = false; $("play").textContent = "Play"; return; }
+  requestAnimationFrame(tick);
+}
+
+$("play").onclick = () => { if (!D) return; playing = !playing; $("play").textContent = playing ? "Pause" : "Play";
+  if (playing) { if (fi >= D.ft.length - 1) { fi = 0; } tGame = D.ft[fi]; lastTs = 0; requestAnimationFrame(tick); } };
+$("scrub").oninput = e => { fi = Number(e.target.value); tGame = D.ft[fi]; render(); };
+$("pov").onchange = () => { if (povVal() !== "all") $("pov").dataset.obs = povVal(); buildLog(); buildFights(); render(); };
+$("skirm").onchange = buildFights;
+$("fightRows").onclick = e => { const r = e.target.closest("[data-n]"); if (!r) return;
+  fightSel = Number(r.dataset.n); const f = D.fights.find(x => x.n === fightSel); buildFights(); seekT(f.start); };
+$("reveal").onchange = render;
+$("ohBar").onchange = $("ohStats").onchange = $("ohRecap").onchange = () => { if (OHUD) OHUD.reset(); render(); };
+$("vision").onchange = render;
+$("nodesOn").onchange = render;
+$("vilRes").onchange = render;
+$("armyMode").onchange = render;
+$("heat").onchange = render;
+$("bldMode").onchange = render;
+$("camOn").onchange = $("camTrail").onchange = $("ordOn").onchange = $("foodOn").onchange = $("bisOn").onchange = $("actOn").onchange = $("terrOn").onchange = $("techOn").onchange = render;
+$("readMode").onchange = () => { try { localStorage.setItem("fogline.read", $("readMode").value); } catch (e) {} render(); };
+try { const m = localStorage.getItem("fogline.read"); if (m) $("readMode").value = m; } catch (e) {}
+$("large").onchange = () => { document.querySelector(".grid").classList.toggle("large", $("large").checked); render(); };
+// fonts: system fonts first; web fonts load from Google Fonts only when picked
+const FONTS = [
+  ["System (Segoe UI / Yu Gothic UI)", null, '"Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif'],
+  ["Meiryo", null, 'Meiryo, "Yu Gothic UI", sans-serif'],
+  ["Noto Sans JP", "Noto+Sans+JP:wght@400;500;700", '"Noto Sans JP", "Yu Gothic UI", sans-serif'],
+  ["BIZ UDPGothic", "BIZ+UDPGothic:wght@400;700", '"BIZ UDPGothic", Meiryo, sans-serif'],
+  ["M PLUS 1p", "M+PLUS+1p:wght@400;500;700", '"M PLUS 1p", Meiryo, sans-serif'],
+  ["Roboto", "Roboto:wght@400;500;700", 'Roboto, "Segoe UI", sans-serif'],
+  ["Source Sans 3", "Source+Sans+3:wght@400;600", '"Source Sans 3", "Segoe UI", sans-serif'],
+  ["Lato", "Lato:wght@400;700", 'Lato, "Segoe UI", sans-serif'],
+];
+FONTS.forEach(([name], i) => $("font").add(new Option(name, String(i))));
+function applyFont(i) {
+  const [, gf, stack] = FONTS[i] || FONTS[0];
+  if (gf && !document.querySelector(`link[data-f="${gf}"]`)) {
+    const l = document.createElement("link"); l.rel = "stylesheet"; l.dataset.f = gf;
+    l.href = `https://fonts.googleapis.com/css2?family=${gf}&display=swap`; l.onload = () => render();
+    document.head.appendChild(l);
+  }
+  for (const v of ["--f-display", "--f-body"]) document.documentElement.style.setProperty(v, stack);
+  render();
+}
+$("font").onchange = () => { try { localStorage.setItem("fogline-font", $("font").value); } catch (e) {} applyFont(Number($("font").value)); };
+try { const f = localStorage.getItem("fogline-font"); if (f !== null) { $("font").value = f; applyFont(Number(f)); } } catch (e) {}
+$("basicsMarks").onclick = e => { const m = e.target.closest("[data-t]"); if (m) seekT(Number(m.dataset.t)); };
+$("buffMarks").onclick = e => { const m = e.target.closest("[data-t]"); if (m) seekT(Number(m.dataset.t)); };
+$("log").onclick = e => { const row = e.target.closest("[data-t]"); if (row) seekT(Number(row.dataset.t)); };
+$("fileIn").onchange = e => { const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => { try { load(JSON.parse(r.result), false); }
+    catch (err) { $("warnBox").hidden = false; $("warnBox").textContent = "Could not load that file: " + err.message; } };
+  r.readAsText(f); };
+document.addEventListener("keydown", e => { if (!D || e.target.tagName === "INPUT" && e.target.type !== "range") return;
+  if (e.key === "ArrowRight") { fi = Math.min(D.ft.length - 1, fi + 1); tGame = D.ft[fi]; render(); }
+  if (e.key === "ArrowLeft") { fi = Math.max(0, fi - 1); tGame = D.ft[fi]; render(); } });
+window.addEventListener("resize", render);
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", render);
+new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+// SAMPLE is one view file, or a list of {label, data} for several games
+const GAMES = Array.isArray(SAMPLE) ? SAMPLE : SAMPLE ? [{ label: "Game", data: SAMPLE }] : [];
+function openGame(i) { const d = GAMES[i].data; load(d, true); seekT(d.synthetic ? 390 : Math.min(600, d.ft[d.ft.length - 1])); }
+if (GAMES.length) {
+  $("gameCtl").hidden = GAMES.length < 2;
+  GAMES.forEach((g, i) => $("game").add(new Option(g.label, String(i))));
+  $("game").onchange = e => { playing = false; $("play").textContent = "Play"; openGame(Number(e.target.value)); };
+  openGame(0);
+}
+else { $("warnBox").hidden = false; $("warnBox").textContent = "Load a view file to begin."; }
+</script>

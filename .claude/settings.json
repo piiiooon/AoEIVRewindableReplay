@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/index_check.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

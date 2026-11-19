@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fight Review</title>
+<style>
+/* Fight review: fight list on the right, the selected fight's map (exact positions, NATO-style unit symbols) on the left. */
+:root {
+  --wood: #9a6a3c; --t-water: #7fa7c9; --t-cliff: #6e5f52; --bg: #eef0f2; --panel: #f9fafb; --ink: #1b2129; --muted: #5d6874; --line: #d3d8de;
+  --accent: #b5651d; --accent-soft: rgba(181,101,29,.14);
+  --p1: #2f6db5; --p2: #c23b3b; --p3: #2f8f5b; --p4: #7a4fb3;
+  --good: #2f8f5b; --ok: #b07a12; --bad: #c23b3b; --ghost: #8a95a1;
+  --ground: #e4e7ea; --tree: #6f9a6a; --gold: #c99a14; --stone: #7d8794; --berry: #43a321; --deer: #c0528a; --animal: #9a6a3c;
+  --d1: #3b6fb6; --d2: #d0842a; --d3: #3d9a6a; --d4: #b5487a; --d5: #7a5bb5; --d6: #9a8a2a;
+  --f-body: "Segoe UI", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  --f-mono: "Cascadia Mono", Consolas, "BIZ UDGothic", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --wood: #b58050; --t-water: #2f4f6e; --t-cliff: #4a4038; --bg: #12161b; --panel: #1a1f26; --ink: #e3e7ec; --muted: #94a0ad; --line: #2c343e;
+  --accent: #e0954f; --accent-soft: rgba(224,149,79,.16);
+  --p1: #6aa3e8; --p2: #ec6f6f; --p3: #5cc28a; --p4: #a986e0;
+  --good: #5cc28a; --ok: #d9a441; --bad: #ec6f6f; --ghost: #6b7683;
+  --ground: #1f252c; --tree: #4f7a4c; --gold: #e0b43a; --stone: #8a95a3; --berry: #7ccf4f; --deer: #d97aa8; --animal: #b8865a; --d1: #6aa3e8; --d2: #e8a25a; --d3: #5cc28a; --d4: #e07aa8; --d5: #a98be6; --d6: #cdbb52; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --wood: #b58050; --t-water: #2f4f6e; --t-cliff: #4a4038; --bg: #12161b; --panel: #1a1f26; --ink: #e3e7ec; --muted: #94a0ad; --line: #2c343e;
+  --accent: #e0954f; --accent-soft: rgba(224,149,79,.16);
+  --p1: #6aa3e8; --p2: #ec6f6f; --p3: #5cc28a; --p4: #a986e0;
+  --good: #5cc28a; --ok: #d9a441; --bad: #ec6f6f; --ghost: #6b7683;
+  --ground: #1f252c; --tree: #4f7a4c; --gold: #e0b43a; --stone: #8a95a3; --berry: #7ccf4f; --deer: #d97aa8; --animal: #b8865a; --d1: #6aa3e8; --d2: #e8a25a; --d3: #5cc28a; --d4: #e07aa8; --d5: #a98be6; --d6: #cdbb52; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; margin: 0;
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px)); }
+[hidden] { display: none !important; }
+.wrap { max-width: 1680px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; }
+h1 { font-weight: 600; font-size: 26px; letter-spacing: .02em; margin: 0; }
+.sub { color: var(--muted); font-size: 13px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+label.ctl { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+select, button { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+button { cursor: pointer; }
+button:hover, select:hover { border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; }
+.box h2 { font-weight: 600; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; margin: 0;
+  color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+canvas { display: block; width: 100%; aspect-ratio: 1 / 1; background: var(--ground); border-radius: 4px; }
+.timeline { display: flex; gap: 10px; align-items: center; }
+.timeline .track { flex: 1; min-width: 0; position: relative; padding-top: 18px; }
+.timeline input { width: 100%; margin: 0; accent-color: var(--accent); }
+/* fight bookmarks above the scrubber (thumb travels between 8px and width-8px) */
+.marks { position: absolute; left: 8px; right: 8px; top: 0; height: 16px; }
+.mark { position: absolute; top: 2px; height: 10px; min-width: 3px; border-radius: 2px; cursor: pointer; border: 0; padding: 0; opacity: .8; }
+.mark:hover, .mark.now { opacity: 1; outline: 2px solid var(--ink); }
+.clock { font-family: var(--f-mono); font-size: 16px; font-variant-numeric: tabular-nums; min-width: 60px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); align-items: center; }
+.legend svg { vertical-align: middle; }
+.list { max-height: 360px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 6px 8px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); white-space: nowrap; }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr { cursor: pointer; }
+tbody tr:hover, tbody tr.now { background: var(--accent-soft); }
+.num { font-family: var(--f-mono); text-align: right; }
+.tag { font-family: var(--f-mono); font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid currentColor; }
+.upset { color: var(--accent); }
+.sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.side { border-left: 3px solid var(--line); padding-left: 10px; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; }
+.side .h { grid-column: 1 / -1; font-weight: 600; }
+.side .k { color: var(--muted); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
+.side .v { font-family: var(--f-mono); }
+.note { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; margin-top: 4px; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; }
+.bar.stack { display: flex; height: 8px; }
+.bar.stack i { position: static; height: 100%; }
+.dmgl { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-family: var(--f-body); font-size: 12px; }
+.dmg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* icon rows: unit / tech icons (tools/icons.py), short-name chips without them; names on hover */
+.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-family: var(--f-mono); font-size: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 2px; padding-bottom: 2px; }
+.ic { width: 28px; height: 28px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--line); color: var(--ink); font: 600 9px var(--f-mono); overflow: hidden; flex: none; }
+.ic.sm { width: 22px; height: 22px; }
+.ic.eco { opacity: .55; }
+.chips .n { color: var(--muted); font-size: 11px; }
+.meters { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.meter { font-family: var(--f-mono); font-size: 12px; cursor: help; }
+.meter .k { display: block; }
+.sw { width: 9px; height: 9px; display: inline-block; border-radius: 2px; }
+#tip { position: fixed; z-index: 5; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 8px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Fight Review</h1>
+    <span class="sub" id="matchline"></span>
+  </header>
+  <div class="controls">
+    <label class="ctl" for="skirm"><input type="checkbox" id="skirm"> Show skirmishes (under 2 deaths or under 200 resources lost)</label>
+    <label class="ctl" for="linesOn"><input type="checkbox" id="linesOn" checked> Attack lines</label>
+    <label class="ctl" for="speed">Speed <select id="speed"><option value="0.5">0.5×</option><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option><option value="16">16×</option><option value="32">32×</option></select></label>
+    <label class="ctl">Load fights file <input type="file" id="fileIn" accept=".json,application/json"></label>
+  </div>
+  <div class="grid">
+    <section class="box">
+      <h2><span><span id="mapTitle">Map</span> <button id="zoomReset" type="button" hidden title="Back to the whole fight (or double-click the map)">Reset view</button>
+        <select id="rot" title="Turn the map (or Shift+drag on it)"><option value="45">Game view</option><option value="0">North up</option>
+          <option value="90">90°</option><option value="135">135°</option><option value="180">180°</option><option value="225">225°</option>
+          <option value="270">270°</option><option value="315">315°</option><option value="custom" hidden>custom</option></select></span><span id="mapNote"></span></h2>
+      <canvas id="map" aria-label="Fight map: units at their exact positions"></canvas>
+      <div class="timeline">
+        <button id="play" type="button">Play</button>
+        <span class="clock" id="clock">0:00</span>
+        <div class="track"><div class="marks" id="marks"></div>
+          <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Game time"></div>
+        <span class="clock" id="clockEnd">0:00</span>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section class="box">
+      <h2><span>Fights</span><span id="count"></span></h2>
+      <div class="list"><table>
+        <thead><tr><th>#</th><th>Time</th><th>Length</th><th class="num" id="thA">P1 lost</th><th class="num" id="thB">P2 lost</th><th>Odds before</th><th>Data</th></tr></thead>
+        <tbody id="rows"></tbody></table></div>
+      <h2><span id="selTitle">No fight at this moment</span><span id="selNote"></span></h2>
+      <div class="sides" id="sides"></div>
+      <div class="note">
+        <b>Win odds before</b>: Lanchester square law from the armies near the fight at its start (damage per second against the
+        other side's mix, with bonus damage and armour, times current HP; base stats, no upgrades, range or micro). Upset = the
+        side given worse odds lost less value.<br>
+        <b>Target choice</b>: value destroyed per second by each attack (damage × target cost ÷ target HP), compared with the
+        best target within the attacker's reach at that moment; 1 = always the best available.
+        Attack lines: <span style="color:var(--good)">≥ 0.8</span>, <span style="color:var(--ok)">0.5–0.8</span>,
+        <span style="color:var(--bad)">&lt; 0.5</span>.<br>
+        <b>Focus fire</b>: 1 = all attackers on one target, 0 = every attacker on a different target.<br>
+        <b>Overkill</b>: share of the damage on dying units that was not needed to finish them. Needs the 4×/s fight samples;
+        with 1/s data it is rough.<br>
+        <b>Damage dealt</b>: HP each unit lost, split among the enemy units recorded attacking it (by their expected damage
+        against it), grouped by attacker type. Unattributed = HP lost with no recorded attacker (arrows in flight, splash,
+        attackers outside the sampled area).
+      </div>
+    </section>
+  </div>
+</div>
+<div id="tip" hidden></div>
+<script>
+const DATA = /*__FIGHTS__*/null;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const pc = i => css("--p" + (((i - 1) % 4) + 1));
+const fmtT = t => { t = Math.max(0, Math.round(t)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+const fmtN = v => v == null ? "–" : Math.round(v).toLocaleString("en-US");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const CIV_NAMES = { english: "English", french: "French", hre: "Holy Roman Empire", rus: "Rus", mongol: "Mongols",
+  chinese: "Chinese", abbasid: "Abbasid Dynasty", sultanate: "Delhi Sultanate", delhi: "Delhi Sultanate",
+  malian: "Malians", ottoman: "Ottomans", japanese: "Japanese", byzantine: "Byzantines",
+  abbasid_ha_01: "Ayyubids", french_ha_01: "Jeanne d'Arc", hre_ha_01: "Order of the Dragon",
+  chinese_ha_01: "Zhu Xi's Legacy", templar: "Knights Templar", lancaster: "House of Lancaster",
+  byzantine_ha_mac: "Macedonian Dynasty", japanese_ha_sen: "Sengoku Daimyo", sultanate_ha_tug: "Tughlaq Dynasty",
+  mongol_ha_gol: "Golden Horde" };
+const civName = c => CIV_NAMES[c] || String(c || "?").replace(/_ha_/, " ").replace(/_/g, " ").replace(/\b\w/g, m => m.toUpperCase());
+
+let D = null, F = null, si = 0, playing = false, lastTs = 0, tNow = 0, pinned = null;
+const ZF = { z: 1, cx: null, cz: null };     // zoom / pan of the map (zoom 1 = the whole map)
+let lastFull = [];                           // timeline index -> index of its full (1 s) row
+// rotation, shared with Fogline's map: Game view = 45 deg (the in-game camera looks toward +x,+z)
+let ROT = Math.PI / 4;
+try { const r = localStorage.getItem("fogline.rot"); if (r !== null && isFinite(Number(r))) ROT = Number(r); } catch (e) {}
+const rotFit = () => Math.abs(Math.cos(ROT)) + Math.abs(Math.sin(ROT));
+function screenToWorld(u, v) { const c = Math.cos(ROT), sn = Math.sin(ROT); return [u * c + v * sn, -u * sn + v * c]; }
+function setRotSelect() { const deg = Math.round(ROT * 180 / Math.PI) % 360, opt = [...$("rot").options].find(o => Number(o.value) === deg); $("rot").value = opt ? opt.value : "custom"; }
+function setRot(r) {
+  ROT = ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  try { localStorage.setItem("fogline.rot", String(ROT)); } catch (e) {}
+  setRotSelect(); draw();
+}
+function drawCompass(g, W) {
+  const x = W - 22, y = 22, r = 13, nx = -Math.sin(ROT), ny = -Math.cos(ROT);
+  g.save(); g.globalAlpha = .85; g.fillStyle = css("--panel"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.beginPath(); g.arc(x, y, r + 4, 0, 7); g.fill(); g.stroke();
+  g.strokeStyle = css("--ink"); g.fillStyle = css("--ink"); g.lineWidth = 2;
+  g.beginPath(); g.moveTo(x - nx * r * .7, y - ny * r * .7); g.lineTo(x + nx * r * .1, y + ny * r * .1); g.stroke();
+  g.beginPath(); g.moveTo(x + nx * r * .45, y + ny * r * .45); g.lineTo(x + nx * r * .05 - ny * 4, y + ny * r * .05 + nx * 4);
+  g.lineTo(x + nx * r * .05 + ny * 4, y + ny * r * .05 - nx * 4); g.closePath(); g.fill();
+  g.font = "700 9px " + css("--f-mono"); g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("N", x + nx * r * .95, y + ny * r * .95);
+  g.restore(); g.textBaseline = "alphabetic";
+}
+
+
+// ---- data
+function load(d) {
+  if (!d || d.format !== "a4d-fights/2") throw new Error("Not a fights file (export_fights.py output, format 2).");
+  D = d;
+  $("matchline").textContent = D.players.map(p => `P${p.idx} ${p.name} (${civName(p.civ)})`).join("  vs  ");
+  const [a, b] = D.players;
+  $("thA").textContent = `P${a.idx} lost`; $("thB").textContent = b ? `P${b.idx} lost` : "";
+  lastFull = []; let lf = 0;
+  D.timeline.forEach((r, i) => { if (!r[1]) lf = i; lastFull[i] = lf; });
+  $("scrub").max = D.timeline.length - 1; si = 0; $("scrub").value = 0;
+  $("clockEnd").textContent = fmtT(D.timeline[D.timeline.length - 1][0]);
+  $("mapNote").textContent = D.fast ? "fights at 4 samples/s" : "1 sample/s (recorded before fight sampling)";
+  ZF.z = 1; ZF.cx = ZF.cz = null; terrainKey = "";
+  buildList(); buildMarks(); legend(); update();
+}
+// units at timeline index i: the last full row, then the fight samples after it
+function stateAt(i) {
+  const base = lastFull[i], st = new Map();
+  for (const r of D.timeline[base][2]) st.set(r[0], r);
+  for (let j = base + 1; j <= i; j++) for (const r of D.timeline[j][2]) { if (r[1] == null) st.delete(r[0]); else st.set(r[0], r); }
+  return st;
+}
+const tAt = i => D.timeline[i][0];
+const fightAt = t => D.fights.find(f => t >= f.start - 5 && t <= f.end + 5) || null;
+const isSkirmish = f => f.deaths < 2 || Object.values(f.lost).reduce((s, v) => s + v, 0) < 200;
+const shownFights = () => D.fights.filter(f => $("skirm").checked || !isSkirmish(f));
+function idxAtTime(t) { let lo = 0, hi = D.timeline.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (tAt(m) <= t) lo = m; else hi = m - 1; } return lo; }
+
+function oddsCell(f) {
+  if (!f.odds) return "–";
+  const w = f.odds.predicted, p = Math.round(f.odds.p[w] * 100);
+  return `<span style="color:${pc(w)}">P${w} ${p}%</span>` + (f.odds.upset ? ` <span class="tag upset">upset</span>` : "");
+}
+function buildList() {
+  const L = shownFights(), [a, b] = D.players;
+  $("count").textContent = `${L.length} of ${D.fights.length}`;
+  $("rows").innerHTML = L.map(f => `<tr data-n="${f.n}"><td>${f.n}</td><td>${fmtT(f.start)}</td><td>${fmtT(f.end - f.start)}</td>`
+    + `<td class="num">${fmtN(f.lost[a.idx])}</td><td class="num">${b ? fmtN(f.lost[b.idx]) : ""}</td><td>${oddsCell(f)}</td><td>${f.data}</td></tr>`).join("");
+  for (const tr of $("rows").children) tr.onclick = () => jumpTo(Number(tr.dataset.n));
+  buildMarks();
+}
+function buildMarks() {
+  const T0 = tAt(0), T1 = tAt(D.timeline.length - 1) || 1;
+  $("marks").innerHTML = shownFights().map(f => {
+    const l = (f.start - T0) / (T1 - T0) * 100, w = Math.max(.4, (f.end - f.start) / (T1 - T0) * 100);
+    const lw = Object.entries(f.lost).sort((x, y) => x[1] - y[1]);
+    const col = f.odds && f.odds.actual ? pc(f.odds.actual) : css("--accent");
+    return `<button class="mark" data-n="${f.n}" style="left:${l}%;width:${w}%;background:${col}" title="Fight ${f.n} · ${fmtT(f.start)}–${fmtT(f.end)}"></button>`;
+  }).join("");
+  for (const m of $("marks").children) m.onclick = () => jumpTo(Number(m.dataset.n));
+}
+// jump to a fight: its start, framed on its area
+function jumpTo(n) {
+  const f = D.fights.find(x => x.n === n); if (!f) return;
+  pinned = n;
+  si = idxAtTime(f.start); tNow = tAt(si);
+  const [x0, z0, x1, z1] = f.bbox, [bx0, bz0, bx1, bz1] = D.bounds;
+  const full = Math.max(bx1 - bx0, bz1 - bz0) * 1.05, need = Math.max(x1 - x0, z1 - z0);
+  ZF.z = Math.min(40, Math.max(1, full / need)); ZF.cx = (x0 + x1) / 2; ZF.cz = (z0 + z1) / 2;
+  $("zoomReset").hidden = false;
+  update();
+}
+
+// ---- side cards for the fight at the current moment (or the one picked)
+function pct(v) { return v == null ? "–" : Math.round(v * 100) + "%"; }
+// damage dealt by unit type: stacked bar (top 6 types, the rest as "other") and the list with shares
+const DMG_COLS = ["--d1", "--d2", "--d3", "--d4", "--d5", "--d6"];
+function shortName(n) {
+  const w = String(n).replace(/\(.*?\)/g, "").trim().split(/\s+/);
+  return w.length > 1 ? w.map(x => x[0]).join("").slice(0, 3).toUpperCase() : w[0].slice(0, 4);
+}
+function uIco(bpi, cls = "") {
+  const n = D.names[bpi] || "?", src = D.icons && D.icons[D.bps[bpi]];
+  return src ? `<img class="ic ${cls}" src="${src}" title="${esc(n)}" alt="${esc(n)}">`
+    : `<span class="ic ${cls}" title="${esc(n)}">${esc(shortName(n))}</span>`;
+}
+function tIco([done, at, name, mil]) {
+  const src = D.techIcons && D.techIcons[at], cls = "sm" + (mil ? "" : " eco"),
+    tip = `${name} · done ${fmtT(done)}${mil ? "" : " · economy"}`;
+  return src ? `<img class="ic ${cls}" src="${src}" title="${esc(tip)}" alt="${esc(name)}">`
+    : `<span class="ic ${cls}" title="${esc(tip)}">${esc(shortName(name))}</span>`;
+}
+function chips(list) {
+  return list && list.length ? `<span class="chips">${list.map(([b, n]) => `<span class="chip">${uIco(b)}<span class="n">×${n}</span></span>`).join("")}</span>`
+    : `<span class="chips"><span class="n">none</span></span>`;
+}
+// damage dealt by unit type: stacked bar (top 6 types, the rest as "other"), then icon chips with shares
+function dmgRows(d) {
+  if (!d || !d.total) return `<span class="k">Damage</span><span class="v">– (no attack data)</span>`;
+  const top = d.by.slice(0, 6), rest = d.by.slice(6).reduce((s, x) => s + x[1], 0), tot = d.total;
+  const parts = top.map((x, i) => [x[0], x[1], css(DMG_COLS[i]), x[2]]).concat(rest ? [["other", rest, css("--ghost"), -1]] : []);
+  const barH = `<div class="bar stack">${parts.map(([n, v, c]) => `<i title="${esc(n)}" style="width:${v / tot * 100}%;background:${c}"></i>`).join("")}</div>`;
+  const list = parts.map(([n, v, c, b]) => `<span class="chip" style="box-shadow:inset 0 -3px ${c}">`
+    + (b >= 0 ? uIco(b) : `<span class="ic" title="other types">…</span>`) + `<span class="n">${Math.round(v / tot * 100)}%</span></span>`).join("");
+  return `<span class="k">Damage</span><span class="v">${fmtN(tot)} HP${d.unattributed ? ` · ${fmtN(d.unattributed)} unattributed` : ""}${barH}<span class="chips" style="margin-top:4px">${list}</span></span>`;
+}
+function bar(v, col) { return v == null ? "" : `<div class="bar"><i style="width:${Math.round(v * 100)}%;background:${col}"></i></div>`; }
+function sides() {
+  const t = tAt(si), cur = fightAt(t);
+  if (cur) pinned = null;
+  F = cur || (pinned != null ? D.fights.find(f => f.n === pinned) : null);
+  for (const tr of $("rows").children) tr.classList.toggle("now", F && Number(tr.dataset.n) === F.n);
+  for (const m of $("marks").children) m.classList.toggle("now", F && Number(m.dataset.n) === F.n);
+  if (!F) { $("selTitle").textContent = "No fight at this moment"; $("selNote").textContent = ""; $("sides").innerHTML = ""; return; }
+  $("selTitle").textContent = `Fight ${F.n} · ${fmtT(F.start)}–${fmtT(F.end)}${cur ? "" : " (not now)"}`;
+  $("selNote").textContent = F.odds && F.odds.upset ? "upset" : "";
+  const TIPS = { odds: "Win odds before: Lanchester square law from the armies near the fight at its start (base stats, no upgrades, range or micro)",
+    target: "Target choice: value destroyed per second by each attack vs the best target within reach (1 = always the best)",
+    focus: "Focus fire: 1 = all attackers on one target, 0 = every attacker on a different target",
+    over: "Overkill: share of the damage on dying units that was not needed to finish them" };
+  $("sides").innerHTML = D.players.map(p => {
+    const k = String(p.idx), tc = F.target[k], ok = F.overkill[k], col = pc(p.idx);
+    const odds = F.odds ? F.odds.p[k] : null, won = F.odds && F.odds.actual === p.idx;
+    const techs = ((D.techs || {})[k] || []).filter(x => x[0] <= F.start).sort((a, b) => b[3] - a[3] || a[0] - b[0]);
+    const meter = (key, label, val, txt, c) => `<span class="meter" title="${esc(TIPS[key])}"><span class="k">${label}</span>${txt}${val == null ? "" : bar(val, c)}</span>`;
+    return `<div class="side" style="border-color:${col}"><span class="h" style="color:${col}">P${p.idx} ${esc(p.name)} · ${esc(civName(p.civ))}${won ? " · came out ahead" : ""}</span>`
+      + `<span class="k">Army</span><span class="v">${chips(F.army && F.army[k])}<span class="n">${F.odds ? fmtN(F.odds.value[k]) + " res at start" : ""}</span></span>`
+      + `<span class="k">Lost</span><span class="v">${chips(F.lostBy && F.lostBy[k])}<span class="n">${fmtN(F.lost[k] || 0)} res</span></span>`
+      + dmgRows(F.damage && F.damage[k])
+      + `<span class="k">Techs</span><span class="v"><span class="chips">${techs.length ? techs.map(tIco).join("") : `<span class="n">none yet</span>`}</span></span>`
+      + `<div class="meters">`
+      + meter("odds", "Odds", odds, pct(odds), col)
+      + meter("target", "Target", tc ? tc.score : null, tc ? tc.score.toFixed(2) : "–", tc ? (tc.score >= .8 ? css("--good") : tc.score >= .5 ? css("--ok") : css("--bad")) : col)
+      + meter("focus", "Focus", F.focus[k], F.focus[k] == null ? "–" : F.focus[k].toFixed(2), col)
+      + meter("over", "Overkill", ok ? ok.wasted : null, ok ? pct(ok.wasted) + (F.data === "1/s" ? "~" : "") : "–", css("--bad"))
+      + `</div></div>`;
+  }).join("");
+}
+
+// ---- map
+let view = null, terrainKey = "", terrainCv = null;
+function sizeCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, r.width, r.height];
+}
+// NATO-style symbols: frame by side (P1 rectangle, P2 diamond, others rectangle), glyph by unit class.
+function frame(g, x, y, s, owner) {
+  g.beginPath();
+  if (owner === D.players[1]?.idx) { g.moveTo(x, y - s * .72); g.lineTo(x + s * .72, y); g.lineTo(x, y + s * .72); g.lineTo(x - s * .72, y); g.closePath(); }
+  else g.rect(x - s * .62, y - s * .42, s * 1.24, s * .84);
+}
+function glyph(g, x, y, s, cls) {
+  const a = s * .38, b = s * .26;
+  g.beginPath();
+  switch (cls) {
+    case "inf": g.moveTo(x - a, y - b); g.lineTo(x + a, y + b); g.moveTo(x + a, y - b); g.lineTo(x - a, y + b); break;
+    case "ranged": g.moveTo(x - a, y + b); g.lineTo(x, y - b); g.lineTo(x + a, y + b); break;
+    case "cav": g.moveTo(x - a, y + b); g.lineTo(x + a, y - b); break;
+    case "horse_archer": g.moveTo(x - a, y + b); g.lineTo(x + a, y - b); g.moveTo(x - a * .9, y - b * .1); g.lineTo(x - a * .3, y - b); g.lineTo(x + a * .3, y - b * .1); break;
+    case "siege": g.arc(x, y, s * .2, 0, 7); g.fill(); return;
+    case "monk": g.moveTo(x, y - b * 1.2); g.lineTo(x, y + b * 1.2); g.moveTo(x - a * .7, y); g.lineTo(x + a * .7, y); break;
+    case "hero": g.font = `700 ${Math.round(s * .7)}px ${css("--f-body")}`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("★", x, y + 1); return;
+    case "naval": g.moveTo(x - a, y); g.quadraticCurveTo(x - a / 2, y - b, x, y); g.quadraticCurveTo(x + a / 2, y + b, x + a, y); break;
+    default: return;
+  }
+  g.stroke();
+}
+// walls and aqueducts as lines (owner): each piece joined to its two nearest pieces of the same owner and kind
+// within the kind's link distance. Palisade (wood): brown line with a player-colour outline; stone walls:
+// thicker grey line; aqueducts (Byzantine, joining cisterns): thin grey line. Gates: a thicker stroke of
+// their wall's style, GATE_LEN long, along the wall direction.
+const GATE_LEN = 6;
+const WALL_STYLE = {
+  wood: { link: 7, w: 2, min: 2, color: () => css("--wood"), outline: true },
+  stone: { link: 7, w: 3.5, min: 3, color: () => css("--stone"), outline: false },
+  aqueduct: { link: 12, w: 0, min: 1.5, max: 1.5, color: () => css("--muted"), outline: false },   // thin at any zoom
+};
+function wallKind(bp) { return /aqueduct/.test(bp) ? "aqueduct" : /palisade/.test(bp) ? "wood" : /_wall|wall_|gate/.test(bp) ? "stone" : null; }
+function wallLines(g, px, pz, pieces, colorOf, alpha) {
+  const ppu = Math.hypot(px(1, 0) - px(0, 0), pz(1, 0) - pz(0, 0));
+  const groups = {};
+  for (const w of pieces) (groups[w[0] + "|" + w[3]] = groups[w[0] + "|" + w[3]] || []).push(w);
+  const nbOf = (L, a, link) => L.filter(b => b !== a).map(b => [Math.hypot(b[1] - a[1], b[2] - a[2]), b])
+    .filter(([d]) => d <= link).sort((p, q) => p[0] - q[0]).slice(0, 2);
+  g.globalAlpha = alpha;
+  for (const [key, L] of Object.entries(groups)) {
+    const [o, kind] = key.split("|"), S = WALL_STYLE[kind], w = Math.min(S.max || 1e9, Math.max(S.min, S.w * ppu));
+    const path = () => {
+      g.beginPath();
+      for (const a of L) {
+        const nb = nbOf(L, a, S.link);
+        if (!nb.length) { g.moveTo(px(a[1], a[2]), pz(a[1], a[2])); g.lineTo(px(a[1], a[2]) + .01, pz(a[1], a[2])); }
+        for (const [, b] of nb) { g.moveTo(px(a[1], a[2]), pz(a[1], a[2])); g.lineTo(px(b[1], b[2]), pz(b[1], b[2])); }
+      }
+    };
+    const gates = (width) => {
+      for (const a of L) {
+        if (!a[4]) continue;
+        const nb = nbOf(L, a, S.link);
+        let dx = 1, dz = 0;
+        if (nb.length === 2) { dx = nb[1][1][1] - nb[0][1][1]; dz = nb[1][1][2] - nb[0][1][2]; }
+        else if (nb.length === 1) { dx = nb[0][1][1] - a[1]; dz = nb[0][1][2] - a[2]; }
+        const n = Math.hypot(dx, dz) || 1, h = GATE_LEN / 2;
+        dx /= n; dz /= n; g.lineWidth = width; g.beginPath();
+        g.moveTo(px(a[1] - dx * h, a[2] - dz * h), pz(a[1] - dx * h, a[2] - dz * h));
+        g.lineTo(px(a[1] + dx * h, a[2] + dz * h), pz(a[1] + dx * h, a[2] + dz * h)); g.stroke();
+      }
+    };
+    g.lineCap = "round";
+    if (S.outline) {                       // player colour underneath, a little wider
+      g.strokeStyle = colorOf(Number(o)); g.lineWidth = w + 3; path(); g.stroke();
+      g.lineCap = "butt"; gates(2 * w + 3); g.lineCap = "round";
+    }
+    g.strokeStyle = S.color(); g.lineWidth = w; path(); g.stroke();
+    g.lineCap = "butt"; gates(2 * w);
+  }
+  g.globalAlpha = 1; g.lineCap = "butt";
+}
+// real footprints (v7 dump): n tiles square, centred on a tile centre (n odd) or corner (n even)
+function snapC(v, o, n) { return n % 2 ? o + (Math.floor((v - o) / 4) + .5) * 4 : o + Math.round((v - o) / 4) * 4; }
+function tilePath(g, px, pz, x, z, n) {
+  const o = D.tile0 || [0, 0], cx = snapC(x, o[0], n), cz = snapC(z, o[1], n), h = n * 2;
+  const P = [[cx - h, cz - h], [cx + h, cz - h], [cx + h, cz + h], [cx - h, cz + h]];
+  g.beginPath(); g.moveTo(px(...P[0]), pz(...P[0])); for (let i = 1; i < 4; i++) g.lineTo(px(...P[i]), pz(...P[i])); g.closePath();
+}
+function draw() {
+  const [g, W, H] = sizeCanvas($("map"));
+  g.clearRect(0, 0, W, H);
+  if (!D) return;
+  const [bx0, bz0, bx1, bz1] = D.bounds, S = Math.max(bx1 - bx0, bz1 - bz0) * 1.05 * rotFit() / ZF.z,
+    cx = ZF.cx ?? (bx0 + bx1) / 2, cz = ZF.cz ?? (bz0 + bz1) / 2, rc = Math.cos(ROT), rs = Math.sin(ROT);
+  const px = (x, z) => W / 2 + ((x - cx) * rc - (z - cz) * rs) / S * W;
+  const pz = (x, z) => H / 2 - ((x - cx) * rs + (z - cz) * rc) / S * H, k = W / S;
+  view = { px, pz, k, S, cx, cz };
+  // terrain relief, drawn once per view into an offscreen canvas
+  if (D.terrain) {
+    const key = [W, H, S, cx, cz, ROT, css("--ground")].join(",");
+    if (key !== terrainKey) {
+      terrainKey = key; terrainCv = terrainCv || document.createElement("canvas");
+      const dpr = window.devicePixelRatio || 1; terrainCv.width = W * dpr; terrainCv.height = H * dpr;
+      const tg = terrainCv.getContext("2d"); tg.setTransform(dpr, 0, 0, dpr, 0, 0); tg.clearRect(0, 0, W, H);
+      const T = D.terrain, hs = T.h;
+      for (let r = 0; r < hs.length; r++) for (let c = 0; c < (hs[r] || []).length; c++) {
+        const v = hs[r][c]; if (v == null) continue;
+        const ax = T.x0 + c * T.step - T.step / 2, az = T.z0 + r * T.step - T.step / 2, b = T.step * 1.02;
+        const X = px(ax, az), Y = pz(ax, az); if (X < -40 || X > W + 40 || Y < -40 || Y > H + 40) continue;
+        const left = hs[r][c - 1] ?? v, down = (hs[r - 1] || [])[c] ?? v;
+        const shade = Math.max(-1, Math.min(1, ((v - left) + (v - down)) / 3));
+        tg.fillStyle = shade >= 0 ? `rgba(255,255,255,${.10 + .25 * shade})` : `rgba(0,0,0,${.08 - .22 * shade})`;
+        tg.beginPath(); tg.moveTo(X, Y); tg.lineTo(px(ax + b, az), pz(ax + b, az));
+        tg.lineTo(px(ax + b, az + b), pz(ax + b, az + b)); tg.lineTo(px(ax, az + b), pz(ax, az + b)); tg.closePath(); tg.fill();
+      }
+      // tiles land units can't stand on (v7 dump)
+      if (D.blocked) for (const k of ["w", "c"]) {
+        const o = D.tile0 || [0, 0]; tg.fillStyle = css(k === "w" ? "--t-water" : "--t-cliff"); tg.globalAlpha = .8; tg.beginPath();
+        D.blocked.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (row[c] === k) {
+          const a = o[0] + c * 4, b = o[1] + r * 4;
+          tg.moveTo(px(a, b), pz(a, b)); tg.lineTo(px(a + 4, b), pz(a + 4, b)); tg.lineTo(px(a + 4, b + 4), pz(a + 4, b + 4)); tg.lineTo(px(a, b + 4), pz(a, b + 4)); tg.closePath();
+        } });
+        tg.fill(); tg.globalAlpha = 1;
+      }
+    }
+    g.drawImage(terrainCv, 0, 0, W, H);
+  }
+  const t = tAt(si);
+  // map objects: the last full snapshot before now
+  const NC = { tree: "--tree", stealth: "--tree", straggler: "--tree", gold: "--gold", stone: "--stone", berry: "--berry",
+    deer: "--deer", boar: "--animal", sheep: "--animal", carcass: "--animal", silver: "--stone" };
+  let ns = null; for (const n of D.nodes) { if (n.t <= t) ns = n; else break; }
+  if (ns) for (const [ty, x, z, tiles] of ns.n) {
+    const tok = NC[ty]; if (!tok) continue;
+    const X = px(x, z), Y = pz(x, z); if (X < -40 || X > W + 40 || Y < -40 || Y > H + 40) continue;
+    const tree = ty === "tree" || ty === "stealth" || ty === "straggler";
+    g.fillStyle = css(tok); g.globalAlpha = tree ? .55 : .9;
+    if (tiles && !tree) { g.globalAlpha = 1; tilePath(g, px, pz, x, z, tiles); g.fill(); continue; }
+    g.beginPath(); g.arc(X, Y, tree ? Math.min(4, Math.max(1.2, 1.4 * k)) : Math.min(5, Math.max(2.2, 1.6 * k)), 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+  const st = stateAt(si), rows = [...st.values()], U = D.units;
+  // deaths in the last 10 s, fading
+  g.lineWidth = 1.5;
+  for (const [dt, , x, z] of D.deaths) {
+    if (dt > t || t - dt > 10) continue;
+    g.strokeStyle = css("--ghost"); g.globalAlpha = 1 - (t - dt) / 10;
+    const X = px(x, z), Y = pz(x, z); g.beginPath(); g.moveTo(X - 4, Y - 4); g.lineTo(X + 4, Y + 4); g.moveTo(X + 4, Y - 4); g.lineTo(X - 4, Y + 4); g.stroke();
+  }
+  g.globalAlpha = 1;
+  // buildings
+  const walls = [];
+  for (const [ui, x, z] of rows) {
+    const u = U[ui]; if (u[3] !== "building") continue;
+    const tiles = D.tiles && D.tiles[u[2]];
+    if (wallKind(D.bps[u[2]])) {    // walls / aqueducts: drawn as lines below
+      walls.push([u[1], x, z, wallKind(D.bps[u[2]]), /gate/.test(D.bps[u[2]])]); continue;
+    }
+    if (tiles) {
+      const farm = /resource_farm/.test(D.bps[u[2]]);
+      tilePath(g, px, pz, x, z, tiles);
+      if (!farm) { g.fillStyle = css("--panel"); g.fill(); }   // opaque: covers terrain / impassable shading
+      g.fillStyle = g.strokeStyle = pc(u[1]);
+      g.globalAlpha = farm ? .12 : .4; g.fill(); g.globalAlpha = farm ? .4 : .9; g.lineWidth = 1.2; g.stroke(); g.globalAlpha = 1; continue;
+    }
+    const big = /town_center|landmark|keep|wonder/.test(D.bps[u[2]]), wall = /palisade|_wall/.test(D.bps[u[2]]), s = big ? 16 : wall ? 4 : 10;
+    g.fillStyle = pc(u[1]); g.globalAlpha = wall ? .3 : .45; g.fillRect(px(x, z) - s / 2, pz(x, z) - s / 2, s, s); g.globalAlpha = 1;
+  }
+  wallLines(g, px, pz, walls, pc, .9);
+  // attack lines (coloured by target choice inside fights, grey elsewhere)
+  if ($("linesOn").checked) {
+    g.lineWidth = 1.2;
+    for (const [ui, x, z, , tg, sc] of rows) {
+      if (tg < 0 || !st.has(tg)) continue;
+      const q = st.get(tg);
+      g.strokeStyle = sc < 0 ? css("--ghost") : sc >= .8 ? css("--good") : sc >= .5 ? css("--ok") : css("--bad");
+      g.globalAlpha = .7; g.beginPath(); g.moveTo(px(x, z), pz(x, z)); g.lineTo(px(q[1], q[2]), pz(q[1], q[2])); g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+  // units
+  const s = 15;
+  for (const [ui, x, z, hp] of rows) {
+    const u = U[ui], cls = u[3]; if (cls === "building") continue;
+    const X = px(x, z), Y = pz(x, z), col = pc(u[1]);
+    if (X < -20 || X > W + 20 || Y < -20 || Y > H + 20) continue;
+    if (cls === "villager" || cls === "other") {
+      g.fillStyle = css("--panel"); g.strokeStyle = col; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(X, Y, cls === "villager" ? 3.2 : 4, 0, 7); g.fill(); g.stroke();
+    } else {
+      g.fillStyle = css("--panel"); g.strokeStyle = col; g.lineWidth = 1.8;
+      frame(g, X, Y, s, u[1]); g.fill(); g.stroke();
+      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.6; glyph(g, X, Y, s, cls);
+    }
+    if (hp < 1) {
+      const w = cls === "villager" ? 8 : 14, y = Y + (cls === "villager" ? 5 : 9);
+      g.fillStyle = css("--line"); g.fillRect(X - w / 2, y, w, 2.5);
+      g.fillStyle = hp > .5 ? css("--good") : hp > .25 ? css("--ok") : css("--bad"); g.fillRect(X - w / 2, y, w * hp, 2.5);
+    }
+  }
+  drawCompass(g, W);
+  $("clock").textContent = fmtT(t);
+  $("scrub").value = si;
+}
+function update() { sides(); draw(); }
+
+function legend() {
+  const sym = (cls, owner) => {
+    const c = document.createElement("canvas"); c.width = 44; c.height = 36;
+    const g = c.getContext("2d"); g.scale(2, 2);
+    const col = pc(owner);
+    g.fillStyle = css("--panel"); g.strokeStyle = col; g.lineWidth = 1.6;
+    frame(g, 11, 9, 15, owner); g.fill(); g.stroke(); g.strokeStyle = col; g.fillStyle = col; glyph(g, 11, 9, 15, cls);
+    return `<img src="${c.toDataURL()}" width="22" height="18" alt="">`;
+  };
+  const [a, b] = D.players;
+  const names = { inf: "infantry", ranged: "ranged", cav: "cavalry", horse_archer: "horse archer", siege: "siege", monk: "religious", hero: "hero", naval: "ship" };
+  $("legend").innerHTML = `<span>${sym("inf", a.idx)} P${a.idx} (rectangle)</span>` + (b ? `<span>${sym("inf", b.idx)} P${b.idx} (diamond)</span>` : "")
+    + Object.entries(names).map(([k, n]) => `<span>${sym(k, a.idx)} ${n}</span>`).join("")
+    + `<span>○ villager</span><span>■ building${D.tiles && D.tiles.some(Boolean) ? " (real size)" : ""}</span><span>✕ death</span><span>bar under unit: HP (when damaged)</span>`
+    + (D.blocked ? `<span><i class="sw" style="background:${css("--t-cliff")}"></i>cliff</span><span><i class="sw" style="background:${css("--t-water")}"></i>deep water</span>` : "");
+}
+
+// ---- playback and hover
+function tick(ts) {
+  if (playing && D) {
+    const dt = lastTs ? (ts - lastTs) / 1000 : 0;
+    tNow += dt * Number($("speed").value);
+    const before = si;
+    while (si + 1 < D.timeline.length && tAt(si + 1) <= tNow) si++;
+    if (si >= D.timeline.length - 1) { playing = false; $("play").textContent = "Play"; }
+    if (si !== before) update();
+  }
+  lastTs = ts; requestAnimationFrame(tick);
+}
+$("play").onclick = () => {
+  if (!D) return;
+  playing = !playing; $("play").textContent = playing ? "Pause" : "Play";
+  if (playing) { if (si >= D.timeline.length - 1) si = 0; tNow = tAt(si); }
+};
+$("scrub").oninput = () => { si = Number($("scrub").value); if (D) tNow = tAt(si); update(); };
+$("skirm").onchange = () => { buildList(); update(); };
+$("linesOn").onchange = draw;
+window.addEventListener("resize", () => { terrainKey = ""; draw(); });
+$("map").addEventListener("mousemove", ev => {
+  if (!D || !view || (drag && drag.moved)) return;
+  const r = $("map").getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top, st = stateAt(si);
+  let best = null, bd = 12;
+  for (const row of st.values()) { const d = Math.hypot(view.px(row[1], row[2]) - mx, view.pz(row[1], row[2]) - my); if (d < bd) { bd = d; best = row; } }
+  const tip = $("tip");
+  if (!best) { tip.hidden = true; return; }
+  const u = D.units[best[0]], tgt = best[4] >= 0 ? D.units[best[4]] : null;
+  tip.innerHTML = `${D.icons && D.icons[D.bps[u[2]]] ? uIco(u[2], "sm") + " " : ""}<b style="color:${pc(u[1])}">P${u[1]} ${esc(D.names[u[2]])}</b> · HP ${Math.round(best[3] * 100)}% · ${fmtN(u[4])} res`
+    + (tgt ? `<br>attacking ${esc(D.names[tgt[2]])}${best[5] >= 0 ? ` · target choice ${best[5].toFixed(2)}` : ""}` : "");
+  tip.hidden = false;
+  tip.style.left = Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px";
+  tip.style.top = Math.min(ev.clientY + 12, innerHeight - tip.offsetHeight - 8) + "px";
+});
+$("map").addEventListener("mouseleave", () => { $("tip").hidden = true; });
+// wheel: zoom at the cursor; drag: pan; Shift+drag: turn; double-click: whole map
+function resetZoom() { ZF.z = 1; ZF.cx = ZF.cz = null; $("zoomReset").hidden = true; draw(); }
+$("map").addEventListener("wheel", ev => {
+  if (!D || !view) return;
+  ev.preventDefault();
+  const r = $("map").getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+  const u = fx - .5, w = .5 - fy, [a0, b0] = screenToWorld(u * view.S, w * view.S), wx = view.cx + a0, wz = view.cz + b0;
+  const z = Math.min(40, Math.max(1, ZF.z * (ev.deltaY < 0 ? 1.25 : 0.8)));
+  const [bx0, bz0, bx1, bz1] = D.bounds, S = Math.max(bx1 - bx0, bz1 - bz0) * 1.05 * rotFit() / z, [a1, b1] = screenToWorld(u * S, w * S);
+  ZF.z = z; ZF.cx = wx - a1; ZF.cz = wz - b1;
+  if (z === 1) ZF.cx = ZF.cz = null;
+  $("zoomReset").hidden = z === 1; draw();
+}, { passive: false });
+let drag = null;
+$("map").addEventListener("mousedown", ev => { if (ev.button === 0 && view) drag = { x: ev.clientX, y: ev.clientY, cx: view.cx, cz: view.cz, S: view.S, rot: ROT, turn: ev.shiftKey, moved: false }; });
+window.addEventListener("mousemove", ev => {
+  if (!drag) return;
+  const r = $("map").getBoundingClientRect(), dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+  if (!drag.moved) return;
+  $("tip").hidden = true;
+  if (drag.turn) {
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    setRot(drag.rot - (Math.atan2(ev.clientY - cy, ev.clientX - cx) - Math.atan2(drag.y - cy, drag.x - cx)));
+    return;
+  }
+  const [wdx, wdz] = screenToWorld(dx / r.width * drag.S, -dy / r.height * drag.S);
+  ZF.cx = drag.cx - wdx; ZF.cz = drag.cz - wdz;
+  $("zoomReset").hidden = false; draw();
+});
+window.addEventListener("mouseup", () => { drag = null; });
+$("map").addEventListener("dblclick", resetZoom);
+$("zoomReset").onclick = resetZoom;
+$("rot").onchange = () => { if ($("rot").value !== "custom") setRot(Number($("rot").value) * Math.PI / 180); };
+$("map").addEventListener("click", ev => {
+  const r = $("map").getBoundingClientRect();
+  if (Math.hypot(ev.clientX - (r.right - 22), ev.clientY - (r.top + 22)) <= 17) setRot(0);
+});
+$("map").style.cursor = "grab";
+$("fileIn").onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => load(JSON.parse(t))).catch(err => alert(err.message)); };
+setRotSelect();
+if (DATA) load(DATA);
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
